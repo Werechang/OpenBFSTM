@@ -1,12 +1,12 @@
 //
-// Created by cookieso on 6/24/24.
+// Created by cookieso on 29.07.24.
 //
 
-#include "AudioPlaybackManager.h"
 #include <iostream>
+#include "ALSAPlayback.h"
 
-AudioPlaybackManager::AudioPlaybackManager(const std::string &deviceName, const snd_pcm_format_t format, const unsigned int rate,
-                                           const unsigned int channelCount) {
+ALSAPlayback::ALSAPlayback(const std::string &deviceName, const snd_pcm_format_t format, const unsigned int rate,
+                             const unsigned int channelCount) {
     if ((err = snd_pcm_open(&m_PlaybackHandle, deviceName.c_str(), SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
         std::cout << "Cannot open audio device!\n" << snd_strerror(err) << std::endl;
         return;
@@ -14,13 +14,13 @@ AudioPlaybackManager::AudioPlaybackManager(const std::string &deviceName, const 
     setHWParams(format, rate, channelCount);
 }
 
-AudioPlaybackManager::~AudioPlaybackManager() {
+ALSAPlayback::~ALSAPlayback() {
     snd_pcm_drain(m_PlaybackHandle);
     snd_pcm_close(m_PlaybackHandle);
 }
 
-void AudioPlaybackManager::setHWParams(const snd_pcm_format_t format, unsigned int rate,
-                                       const unsigned int channelCount) {
+void ALSAPlayback::setHWParams(const snd_pcm_format_t format, unsigned int rate,
+                                const unsigned int channelCount) {
     snd_pcm_hw_params_t *hw_params;
     if ((err = snd_pcm_hw_params_malloc(&hw_params))) {
         std::cout << "Cannot allocate hardware parameters!\n" << snd_strerror(err) << std::endl;
@@ -59,31 +59,17 @@ void AudioPlaybackManager::setHWParams(const snd_pcm_format_t format, unsigned i
     snd_pcm_hw_params_free(hw_params);
 }
 
-void AudioPlaybackManager::startDevice() const {
+void ALSAPlayback::startDevice() const {
     snd_pcm_start(m_PlaybackHandle);
 }
 
-void AudioPlaybackManager::writeData(void **bufs, const size_t frames) const {
+void ALSAPlayback::writeData(void **bufs, const size_t frames) const {
     if (snd_pcm_writen(m_PlaybackHandle, bufs, frames) == -EPIPE) {
         snd_pcm_prepare(m_PlaybackHandle);
     }
 }
 
-void AudioPlaybackManager::setSWParams() {
-    snd_pcm_sw_params_t *sw_params;
-
-    if ((err = snd_pcm_sw_params_malloc(&sw_params))) {
-        std::cout << "Cannot allocate software parameters!\n" << snd_strerror(err) << std::endl;
-        return;
-    }
-
-    if ((err = snd_pcm_sw_params_current(m_PlaybackHandle, sw_params)) < 0) {
-        snd_pcm_sw_params_free(sw_params);
-        std::cout << "Cannot initialize software parameters!\n" << snd_strerror(err) << std::endl;
-    }
-}
-
-std::vector<std::string> AudioPlaybackManager::getDevices() {
+std::vector<std::string> ALSAPlayback::getDevices() {
     char **hints = nullptr;
     snd_device_name_hint(-1, "pcm", reinterpret_cast<void ***>(&hints));
     char **it = hints;

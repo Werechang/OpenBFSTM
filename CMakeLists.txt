@@ -7,12 +7,15 @@ add_executable(OpenBFSTM main.cpp
         InMemoryResource.h
         BfstmFile.cpp
         BfstmFile.h
-        AudioPlaybackManager.cpp
-        AudioPlaybackManager.h
+        playback/AudioPlayback.h
         bfgrp/BfgrpFile.h
         BfFile.h
         bfgrp/BfgrpReader.cpp
         bfgrp/BfgrpReader.h
-        DSPADPCMCodec.h)
+        DSPADPCMCodec.h
+        playback/PipeWirePlayback.cpp
+        playback/PipeWirePlayback.h
+        playback/ALSAPlayback.cpp
+        playback/ALSAPlayback.h)
 
 target_link_libraries(OpenBFSTM libasound.so)

@@ -6,7 +6,7 @@
 
 #include "BfstmFile.h"
 #include "InMemoryResource.h"
-#include "AudioPlaybackManager.h"
+#include "playback/ALSAPlayback.h"
 #include "DSPADPCMCodec.h"
 
 /*        D | E
@@ -29,17 +29,66 @@ snd_pcm_format_t getFormat(const SoundEncoding encoding) {
     }
 }
 
-void decodeBlocks(const BfstmContext &context, const InMemoryResource &resource, const std::function<void(void**, uint32_t)>& writeFun) {
+/**
+ *
+ * @param channelNum
+ * @param frameCount Number of frames to be played
+ * @param startFrame The first frame to be played
+ * @param sampleSize
+ * @param blockSizeRaw
+ * @param encoding
+ * @param offsetDataPtr
+ * @param coefficients The coefficients for dsp-adpcm playback
+ * @param dspYn The start yn values for dsp-adpcm playback
+ * @param writeFun
+ */
+void decodeFrameBlock(uint32_t channelNum, uint32_t frameCount, uint32_t startFrame, uint32_t sampleSize,
+                      uint32_t blockSizeRaw, SoundEncoding encoding,
+                      const void *offsetDataPtr, std::optional<std::vector<int16_t[8][2]>> &coefficients,
+                      std::optional<std::vector<std::array<int16_t, 2>>> &dspYn,
+                      const std::function<void(void **, uint32_t)> &writeFun) {
+    auto blockData = std::make_unique_for_overwrite<void *[]>(channelNum);
+    std::unique_ptr<int16_t[]> decoded = std::make_unique_for_overwrite<int16_t[]>(frameCount);
+    for (int j = 0; j < channelNum; ++j) {
+        if (encoding != SoundEncoding::DSP_ADPCM) {
+            blockData[j] =
+                    reinterpret_cast<void *>(reinterpret_cast<size_t>(offsetDataPtr) + j * blockSizeRaw +
+                                             sampleSize * startFrame);
+        } else {
+            auto *start = reinterpret_cast<uint8_t *>(reinterpret_cast<size_t>(offsetDataPtr) + j * blockSizeRaw +
+                                                      sampleSize * startFrame);
+            DSPADPCMDecode(start, decoded.get(), dspYn.value()[j][0], dspYn.value()[j][1],
+                           coefficients.value()[j], frameCount);
+            blockData[j] = decoded.get();
+        }
+    }
+    writeFun(blockData.get(), frameCount);
+}
+
+void decodeBlocks(const BfstmContext &context, const InMemoryResource &resource,
+                  const std::function<void(void **, uint32_t)> &writeFun) {
     uint32_t channelNum = context.streamInfo.channelNum;
+    uint32_t blockSizeBytes = context.streamInfo.blockSizeBytes;
+    uint32_t lastBlockSizeBytesRaw = context.streamInfo.lastBlockSizeBytesRaw;
+    uint32_t sampleSize = context.streamInfo.blockSizeSamples / context.streamInfo.blockSizeBytes;
+
     auto *dataPtr = resource.getAsPtrUnsafe(
             context.header.dataSection->offset + 0x8 + context.streamInfo.sampleDataOffset);
     auto blockData = std::make_unique_for_overwrite<void *[]>(channelNum);
-    auto dspYn = std::vector<std::array<int16_t, 2>>(channelNum);
+
+    std::optional<std::vector<int16_t[8][2]>> coefficients;
+    std::optional<std::vector<std::array<int16_t, 2>>> dspYn;
     if (context.streamInfo.soundEncoding == SoundEncoding::DSP_ADPCM) {
+        dspYn = std::vector<std::array<int16_t, 2>>(channelNum);
+        coefficients = std::vector<int16_t[8][2]>(channelNum);
         for (int i = 0; i < channelNum; ++i) {
             auto dsp = get<BfstmDSPADPCMChannelInfo>(context.channelInfos[i]);
-            dspYn[i][0] = dsp.yn1;
-            dspYn[i][1] = dsp.yn2;
+            dspYn.value()[i][0] = dsp.yn1;
+            dspYn.value()[i][1] = dsp.yn2;
+            for (int j = 0; j < 8; ++j) {
+                coefficients.value()[i][j][0] = dsp.coefficients[j][0];
+                coefficients.value()[i][j][1] = dsp.coefficients[j][1];
+            }
         }
     }
     std::unique_ptr<int16_t[]> decoded = std::make_unique_for_overwrite<int16_t[]>(
@@ -49,23 +98,80 @@ void decodeBlocks(const BfstmContext &context, const InMemoryResource &resource,
         uint32_t blockSampleCount = isLast
                                     ? context.streamInfo.lastBlockSizeSamples
                                     : context.streamInfo.blockSizeSamples;
-        uint32_t off = i * channelNum * context.streamInfo.blockSizeBytes;
-        for (int j = 0; j < channelNum; ++j) {
-            if (context.streamInfo.soundEncoding != SoundEncoding::DSP_ADPCM) {
-                blockData[j] =
-                        reinterpret_cast<void *>(reinterpret_cast<size_t>(dataPtr) + off + j * (isLast
-                                                                                                ? context.streamInfo.lastBlockSizeBytesRaw
-                                                                                                : context.streamInfo.blockSizeBytes));
-            } else {
-                auto *start = reinterpret_cast<uint8_t *>(reinterpret_cast<size_t>(dataPtr) + off + j * (isLast
-                                                                                                         ? context.streamInfo.lastBlockSizeBytesRaw
-                                                                                                         : context.streamInfo.blockSizeBytes));
-                DSPADPCMDecode(start, decoded.get(), dspYn[j][0], dspYn[j][1],
-                               get<BfstmDSPADPCMChannelInfo>(context.channelInfos[j]).coefficients, blockSampleCount);
-                blockData[j] = decoded.get();
-            }
+        uint32_t off = i * channelNum * blockSizeBytes;
+        uint32_t blockSize = isLast
+                             ? lastBlockSizeBytesRaw
+                             : blockSizeBytes;
+        decodeFrameBlock(channelNum, blockSampleCount, 0, sampleSize, blockSize,
+                         context.streamInfo.soundEncoding,
+                         reinterpret_cast<const void *>(reinterpret_cast<size_t>(dataPtr) + off), coefficients, dspYn,
+                         writeFun);
+    }
+    // Loop Logic
+    if (!context.streamInfo.isLoop) return;
+    auto frameCount = static_cast<double>(
+            (context.streamInfo.blockCountPerChannel - 1) * context.streamInfo.blockSizeSamples +
+            context.streamInfo.lastBlockSizeSamples);
+    auto loopStartBlock =
+            static_cast<uint32_t>(context.streamInfo.loopStart / frameCount * context.streamInfo.blockCountPerChannel);
+    uint32_t startSampleInBlock = context.streamInfo.loopStart % context.streamInfo.blockSizeSamples;
+    auto loopEndBlock =
+            static_cast<uint32_t>(context.streamInfo.loopEnd / frameCount * context.streamInfo.blockCountPerChannel);
+    if (loopEndBlock == context.streamInfo.blockCountPerChannel)
+        loopEndBlock = context.streamInfo.blockCountPerChannel - 1;
+    uint32_t endSampleInBlock = context.streamInfo.loopEnd % context.streamInfo.blockSizeSamples;
+    if (context.streamInfo.soundEncoding == SoundEncoding::DSP_ADPCM) {
+        for (int i = 0; i < channelNum; ++i) {
+            auto dsp = get<BfstmDSPADPCMChannelInfo>(context.channelInfos[i]);
+            dspYn.value()[i][0] = dsp.loopYn1;
+            dspYn.value()[i][1] = dsp.loopYn2;
         }
-        writeFun(blockData.get(), blockSampleCount);
+    }
+    {
+        bool isLast = loopStartBlock + 1 == context.streamInfo.blockCountPerChannel;
+        // TODO isLast handling (if loop start and end are in same block)
+        uint32_t blockSampleCount = isLast
+                                    ? context.streamInfo.lastBlockSizeSamples
+                                    : context.streamInfo.blockSizeSamples;
+        uint32_t sampleOffBytes = startSampleInBlock * (isLast
+                                                        ? lastBlockSizeBytesRaw
+                                                        : blockSizeBytes / blockSampleCount);
+        uint32_t off = loopStartBlock * channelNum * blockSizeBytes + sampleOffBytes;
+        decodeFrameBlock(channelNum, blockSampleCount - startSampleInBlock, startSampleInBlock, sampleSize, isLast
+                                                                                                            ? lastBlockSizeBytesRaw
+                                                                                                            : blockSizeBytes,
+                         context.streamInfo.soundEncoding,
+                         reinterpret_cast<const void *>(reinterpret_cast<size_t>(dataPtr) + off), coefficients, dspYn,
+                         writeFun);
+    }
+
+    for (uint32_t i = loopStartBlock + 1; i < loopEndBlock - 1; ++i) {
+        uint32_t blockSampleCount = context.streamInfo.blockSizeSamples;
+        uint32_t off = i * channelNum * blockSizeBytes;
+        decodeFrameBlock(channelNum, blockSampleCount, 0, sampleSize, blockSizeBytes,
+                         context.streamInfo.soundEncoding,
+                         reinterpret_cast<const void *>(reinterpret_cast<size_t>(dataPtr) + off), coefficients, dspYn,
+                         writeFun);
+    }
+
+    {
+        bool isLast = loopEndBlock + 1 == context.streamInfo.blockCountPerChannel;
+        uint32_t off = loopEndBlock * channelNum * blockSizeBytes;
+        decodeFrameBlock(channelNum, endSampleInBlock, 0, sampleSize, isLast ? lastBlockSizeBytesRaw : blockSizeBytes,
+                         context.streamInfo.soundEncoding,
+                         reinterpret_cast<const void *>(reinterpret_cast<size_t>(dataPtr) + off), coefficients, dspYn,
+                         writeFun);
+    }
+}
+
+enum class Options {
+    OUTFILE,
+    VOLUME,
+};
+
+void parseOption(char option, char *value) {
+    switch (option) {
+
     }
 }
 
@@ -94,14 +200,14 @@ int main(int argc, char **argv) {
         std::cout << "Loop End: " << context->streamInfo.loopEnd << std::endl;
     }
     std::cout << "Length: " << (context->streamInfo.blockSizeSamples * (context->streamInfo.blockCountPerChannel - 1) +
-                                context->streamInfo.lastBlockSizeSamples) / context->streamInfo.sampleRate << "s" << std::endl;
+                                context->streamInfo.lastBlockSizeSamples) / context->streamInfo.sampleRate << "s"
+              << std::endl;
 
-    uint32_t channelNum = context->streamInfo.channelNum;
     auto deviceName = "pipewire";
     if (argc > 2) {
         deviceName = argv[2];
     }
-    auto devices = AudioPlaybackManager::getDevices();
+    auto devices = ALSAPlayback::getDevices();
     bool hasDevice = false;
     for (const auto &device: devices) {
         if (device == deviceName) hasDevice = true;
@@ -114,10 +220,11 @@ int main(int argc, char **argv) {
         }
         return 0;
     }
-    AudioPlaybackManager audio{deviceName, getFormat(context->streamInfo.soundEncoding), context->streamInfo.sampleRate,
-                               channelNum};
+
+    ALSAPlayback audio{deviceName, getFormat(context->streamInfo.soundEncoding), context->streamInfo.sampleRate,
+                       context->streamInfo.channelNum};
     audio.startDevice();
-    decodeBlocks(context.value(), resource, [&](void **data, uint32_t frames){
+    decodeBlocks(context.value(), resource, [&](void **data, uint32_t frames) {
         audio.writeData(data, frames);
     });
     return 0;
