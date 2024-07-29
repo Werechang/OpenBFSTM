@@ -89,7 +89,6 @@ std::optional<BfstmContext> readBfstm(const InMemoryResource &resource) {
     header.fileSize = stream.readU32();
     header.sectionCount = stream.readU16();
     stream.skip(2);
-    std::cout << header << std::endl;
     for (int i = 0; i < header.sectionCount; ++i) {
         switch (auto section = readSectionInfo(stream); section.flag) {
             case 0x4000:
@@ -192,7 +191,8 @@ std::optional<BfstmContext> readBfstm(const InMemoryResource &resource) {
     }
 
     // Channel Info
-    if (info.channelInfo) {
+    if (info.channelInfo && context.streamInfo.soundEncoding == SoundEncoding::DSP_ADPCM ||
+        context.streamInfo.soundEncoding == SoundEncoding::IMA_ADPCM) {
         size_t startOff = header.infoSection->offset + 0x8 + info.channelInfo->offset;
         stream.seek(startOff);
         uint32_t refCount = stream.readU32();

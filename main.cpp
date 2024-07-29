@@ -3,6 +3,7 @@
 #include <vector>
 #include <ostream>
 #include <functional>
+#include <filesystem>
 
 #include "BfstmFile.h"
 #include "InMemoryResource.h"
@@ -127,40 +128,20 @@ void decodeBlocks(const BfstmContext &context, const InMemoryResource &resource,
             dspYn.value()[i][1] = dsp.loopYn2;
         }
     }
-    {
-        bool isLast = loopStartBlock + 1 == context.streamInfo.blockCountPerChannel;
-        // TODO isLast handling (if loop start and end are in same block)
-        uint32_t blockSampleCount = isLast
-                                    ? context.streamInfo.lastBlockSizeSamples
-                                    : context.streamInfo.blockSizeSamples;
-        uint32_t sampleOffBytes = startSampleInBlock * (isLast
-                                                        ? lastBlockSizeBytesRaw
-                                                        : blockSizeBytes / blockSampleCount);
-        uint32_t off = loopStartBlock * channelNum * blockSizeBytes + sampleOffBytes;
-        decodeFrameBlock(channelNum, blockSampleCount - startSampleInBlock, startSampleInBlock, sampleSize, isLast
-                                                                                                            ? lastBlockSizeBytesRaw
-                                                                                                            : blockSizeBytes,
-                         context.streamInfo.soundEncoding,
-                         reinterpret_cast<const void *>(reinterpret_cast<size_t>(dataPtr) + off), coefficients, dspYn,
-                         writeFun);
-    }
-
-    for (uint32_t i = loopStartBlock + 1; i < loopEndBlock - 1; ++i) {
-        uint32_t blockSampleCount = context.streamInfo.blockSizeSamples;
-        uint32_t off = i * channelNum * blockSizeBytes;
-        decodeFrameBlock(channelNum, blockSampleCount, 0, sampleSize, blockSizeBytes,
-                         context.streamInfo.soundEncoding,
-                         reinterpret_cast<const void *>(reinterpret_cast<size_t>(dataPtr) + off), coefficients, dspYn,
-                         writeFun);
-    }
-
-    {
-        bool isLast = loopEndBlock + 1 == context.streamInfo.blockCountPerChannel;
-        uint32_t off = loopEndBlock * channelNum * blockSizeBytes;
-        decodeFrameBlock(channelNum, endSampleInBlock, 0, sampleSize, isLast ? lastBlockSizeBytesRaw : blockSizeBytes,
-                         context.streamInfo.soundEncoding,
-                         reinterpret_cast<const void *>(reinterpret_cast<size_t>(dataPtr) + off), coefficients, dspYn,
-                         writeFun);
+    for (int n = 0; n < 8; ++n) {
+        for (uint32_t i = loopStartBlock; i <= loopEndBlock; ++i) {
+            bool isLast = i + 1 == context.streamInfo.blockCountPerChannel;
+            bool isLoopStart = i == loopStartBlock;
+            bool isLoopEnd = i == loopEndBlock;
+            uint32_t off = i * channelNum * blockSizeBytes + (isLoopStart ? startSampleInBlock * sampleSize : 0);
+            decodeFrameBlock(channelNum, (isLoopEnd ? endSampleInBlock : context.streamInfo.blockSizeSamples) -
+                                         (isLoopStart ? startSampleInBlock : 0), isLoopStart ? startSampleInBlock : 0,
+                             sampleSize, isLast ? lastBlockSizeBytesRaw : blockSizeBytes,
+                             context.streamInfo.soundEncoding,
+                             reinterpret_cast<const void *>(reinterpret_cast<size_t>(dataPtr) + off), coefficients,
+                             dspYn,
+                             writeFun);
+        }
     }
 }
 
@@ -175,11 +156,48 @@ void parseOption(char option, char *value) {
     }
 }
 
+void iterateAll() {
+    const std::filesystem::path path{"/home/cookieso/switch/Games/RomFS/SUPER MARIO ODYSSEY v0 (0100000000010000)/SoundData/stream/"};
+    uint32_t minLen = 999999;
+    std::filesystem::path minFile;
+    for (auto const &dir_entry: std::filesystem::directory_iterator{path}) {
+        if (dir_entry.is_regular_file()) {
+            std::ifstream in{
+                    dir_entry.path(),
+                    std::ios::binary
+            };
+            if (!in) {
+                std::cout << "File is invalid." << std::endl;
+                continue;
+            }
+            InMemoryResource resource{in};
+            auto context = readBfstm(resource);
+            if (!context) {
+                std::cerr << "Context could not be loaded." << std::endl;
+                continue;
+            }
+            if (context->streamInfo.soundEncoding != SoundEncoding::DSP_ADPCM) {
+                std::cout << context->streamInfo.soundEncoding << " in: " << dir_entry.path() << std::endl;
+            }
+            if (!context->streamInfo.isLoop) continue;
+            uint32_t len = (context->streamInfo.blockSizeSamples * (context->streamInfo.blockCountPerChannel - 1) +
+                            context->streamInfo.lastBlockSizeSamples) / context->streamInfo.sampleRate;
+            if (len < minLen) {
+                minLen = len;
+                minFile = dir_entry.path();
+            }
+        }
+    }
+    std::cout << "Min len: " << minLen << "s in: " << minFile << std::endl;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         std::cout << "Please specify a file to play." << std::endl;
         return 0;
     }
+    iterateAll();
+
     std::ifstream in{
             argv[1],
             std::ios::binary
