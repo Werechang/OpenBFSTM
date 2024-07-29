@@ -26,7 +26,7 @@ inline short Clamp16(const int value) {
     return static_cast<short>(value);
 }
 
-static void DSPADPCMDecode(const uint8_t *src, short *dst, short &yn1, short &yn2, int16_t coefs[8][2], const uint32_t sampleCount) {
+static void DSPADPCMDecode(const uint8_t *src, short *dst, short &yn1, short &yn2, const int16_t coefs[8][2], const uint32_t sampleCount) {
     //Each DSP-ADPCM frame is 8 bytes long. It contains 1 header byte, and 7 sample bytes.
 
     //Set initial values.
