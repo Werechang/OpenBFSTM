@@ -55,7 +55,7 @@ static void DSPADPCMDecode(const uint8_t *src, short *dst, short &yn1, short &yn
             for (uint32_t s = 0; s < 2; s++) {
                 int8_t adpcm_nibble = s == 0 ? GetHighNibble(byt) : GetLowNibble(byt);
                 short sample = Clamp16(
-                        (adpcm_nibble * scale << 11) + 1024 + (coef1 * yn1 + coef2 * yn2) >> 11);
+                        ((adpcm_nibble * scale << 11) + 1024 + (coef1 * yn1 + coef2 * yn2)) >> 11);
 
                 yn2 = yn1;
                 yn1 = sample;

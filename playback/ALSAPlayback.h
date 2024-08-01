@@ -20,7 +20,15 @@ public:
 
     void writeData(void **bufs, size_t frames) const override;
 
+    void stop() override;
+
+    void pause(bool enable) override;
+
+    uint32_t getDelayFrames() override;
+
     static std::vector<std::string> getDevices();
+protected:
+    void join() override;
 private:
     void setHWParams(snd_pcm_format_t format, unsigned int rate, unsigned int channelCount);
 

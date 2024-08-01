@@ -4,7 +4,7 @@ project(OpenBFSTM)
 set(CMAKE_CXX_STANDARD 23)
 
 add_executable(OpenBFSTM main.cpp
-        InMemoryResource.h
+        MemoryResource.h
         BfstmFile.cpp
         BfstmFile.h
         playback/AudioPlayback.h
@@ -16,6 +16,10 @@ add_executable(OpenBFSTM main.cpp
         playback/PipeWirePlayback.cpp
         playback/PipeWirePlayback.h
         playback/ALSAPlayback.cpp
-        playback/ALSAPlayback.h)
+        playback/ALSAPlayback.h
+        playback/PlaybackFunctions.cpp
+        playback/PlaybackFunctions.h
+        playback/AudioPlayback.cpp)
+
 
 target_link_libraries(OpenBFSTM libasound.so)

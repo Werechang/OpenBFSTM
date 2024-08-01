@@ -10,8 +10,9 @@
 #include "BfFile.h"
 
 class InMemoryStream;
+class OutMemoryStream;
 
-class InMemoryResource;
+class MemoryResource;
 
 struct BfstmData {
     uint32_t magic;
@@ -161,4 +162,6 @@ ReferenceEntry readReferenceEntry(InMemoryStream &stream);
 
 SectionInfo readSectionInfo(InMemoryStream &stream);
 
-std::optional<BfstmContext> readBfstm(const InMemoryResource &resource);
+std::optional<BfstmContext> readBfstm(const MemoryResource &resource);
+
+void writeBfstm(OutMemoryStream &stream, bool le);

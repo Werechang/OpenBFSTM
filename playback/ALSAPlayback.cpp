@@ -15,7 +15,7 @@ ALSAPlayback::ALSAPlayback(const std::string &deviceName, const snd_pcm_format_t
 }
 
 ALSAPlayback::~ALSAPlayback() {
-    snd_pcm_drain(m_PlaybackHandle);
+    snd_pcm_drop(m_PlaybackHandle);
     snd_pcm_close(m_PlaybackHandle);
 }
 
@@ -83,4 +83,23 @@ std::vector<std::string> ALSAPlayback::getDevices() {
     }
     snd_device_name_free_hint(reinterpret_cast<void **>(hints));
     return deviceNames;
+}
+
+void ALSAPlayback::join() {
+    snd_pcm_drain(m_PlaybackHandle);
+}
+
+void ALSAPlayback::pause(bool enable) {
+    snd_pcm_pause(m_PlaybackHandle, enable);
+}
+
+void ALSAPlayback::stop() {
+    AudioPlayback::stop();
+    snd_pcm_drop(m_PlaybackHandle);
+}
+
+uint32_t ALSAPlayback::getDelayFrames() {
+    snd_pcm_sframes_t frames;
+    snd_pcm_delay(m_PlaybackHandle, &frames);
+    return frames;
 }

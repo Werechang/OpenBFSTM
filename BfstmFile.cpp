@@ -4,7 +4,7 @@
 
 #include "BfstmFile.h"
 
-#include "InMemoryResource.h"
+#include "MemoryResource.h"
 
 bool BfstmData::verifyData() const {
     return this->magic == 0x41544144;
@@ -71,7 +71,7 @@ SectionInfo readSectionInfo(InMemoryStream &stream) {
     return info;
 }
 
-std::optional<BfstmContext> readBfstm(const InMemoryResource &resource) {
+std::optional<BfstmContext> readBfstm(const MemoryResource &resource) {
     InMemoryStream stream{resource};
     BfstmContext context{};
     BfstmHeader &header = context.header;
@@ -229,4 +229,20 @@ std::optional<BfstmContext> readBfstm(const InMemoryResource &resource) {
     data.sectionSize = stream.readU32();
 
     return context;
+}
+
+void writeBfstm(OutMemoryStream &stream, bool le) {
+    stream.writeU32(0x4d545346);
+    stream.writeU16(0xfeff);
+    stream.writeU16(0x40);
+    stream.writeU32(0x00060100);
+    size_t fileSizeOff = stream.skip(4);
+    stream.writeU16(0x3);
+    stream.writeU16(0);
+    // info
+    stream.writeU16(0x4000);
+    stream.writeU16(0);
+    stream.writeS32(0x40);
+    // seek
+    // data
 }
