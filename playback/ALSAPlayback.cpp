@@ -90,6 +90,7 @@ void ALSAPlayback::join() {
 }
 
 void ALSAPlayback::pause(bool enable) {
+    AudioPlayback::pause(enable);
     snd_pcm_pause(m_PlaybackHandle, enable);
 }
 
@@ -102,4 +103,9 @@ uint32_t ALSAPlayback::getDelayFrames() {
     snd_pcm_sframes_t frames;
     snd_pcm_delay(m_PlaybackHandle, &frames);
     return frames;
+}
+
+void ALSAPlayback::seek(const BfstmContext &context, const void *histPtr, uint32_t block) {
+    AudioPlayback::seek(context, histPtr, block);
+    snd_pcm_prepare(m_PlaybackHandle);
 }

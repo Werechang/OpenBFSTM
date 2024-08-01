@@ -6,6 +6,7 @@
 
 #include <thread>
 #include <memory>
+#include <condition_variable>
 #include "../BfstmFile.h"
 
 /**
@@ -24,13 +25,18 @@ public:
      */
     void play(const BfstmContext &context, MemoryResource &resource);
 
-    void seek(const BfstmContext &context, const void *histPtr, uint32_t block);
+    virtual void seek(const BfstmContext &context, const void *histPtr, uint32_t block);
 
     virtual void stop() {
         m_ShouldStop = true;
+        m_Paused = false;
+        m_Paused.notify_all();
     }
 
-    virtual void pause(bool enable) = 0;
+    virtual void pause(bool enable) {
+        m_Paused = enable;
+        m_Paused.notify_all();
+    }
 
     /**
      * @return The amount of frames stored in the audio device waiting to be played
@@ -40,11 +46,12 @@ protected:
     virtual void join() = 0;
 
     std::atomic_bool m_ShouldStop = false;
+    std::atomic_bool m_Paused = false;
 private:
     void prepareLoop(const BfstmContext &context);
 
-    std::mutex m_WriteAudio;
     std::shared_ptr<int16_t[][8][2]> m_Coefficients;
     std::shared_ptr<int16_t[][2]> m_Yn;
+    std::mutex m_WriteAudio;
     std::atomic_uint32_t m_NextBlock = 0;
 };

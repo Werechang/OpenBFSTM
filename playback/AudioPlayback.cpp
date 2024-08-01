@@ -35,7 +35,9 @@ void AudioPlayback::play(const BfstmContext &context, MemoryResource &resource) 
         writeData(data, frames);
     };
 
-    while (!m_ShouldStop) {
+    while (true) {
+        m_Paused.wait(true);
+        if (m_ShouldStop) break;
         m_WriteAudio.lock();
         uint32_t i = m_NextBlock;
         bool isLast = i + 1 == context.streamInfo.blockCountPerChannel;

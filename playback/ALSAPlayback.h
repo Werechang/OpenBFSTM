@@ -24,6 +24,8 @@ public:
 
     void pause(bool enable) override;
 
+    void seek(const BfstmContext &context, const void *histPtr, uint32_t block) override;
+
     uint32_t getDelayFrames() override;
 
     static std::vector<std::string> getDevices();
