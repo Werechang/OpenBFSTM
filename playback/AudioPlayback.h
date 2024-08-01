@@ -23,7 +23,7 @@ public:
      * @param context
      * @param resource
      */
-    void play(const BfstmContext &context, MemoryResource &resource);
+    void play(const BfstmContext &context, const void *resource);
 
     virtual void seek(const BfstmContext &context, const void *histPtr, uint32_t block);
 
@@ -38,13 +38,14 @@ public:
         m_Paused.notify_all();
     }
 
+    virtual void join() = 0;
+
     /**
      * @return The amount of frames stored in the audio device waiting to be played
      */
     virtual uint32_t getDelayFrames() = 0;
-protected:
-    virtual void join() = 0;
 
+protected:
     std::atomic_bool m_ShouldStop = false;
     std::atomic_bool m_Paused = false;
 private:

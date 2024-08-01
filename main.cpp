@@ -126,14 +126,16 @@ int main(int argc, char **argv) {
         std::cout << "This audio file loops. Write 's' to stop." << std::endl;
     }
 
+    auto *dataPtr = resource.getAsPtrUnsafe(
+            context->header.dataSection->offset + 0x8 + context->streamInfo.sampleDataOffset);
+    auto histPtr = resource.getAsPtrUnsafe(context->header.seekSection->offset + 0x8);
+
     ALSAPlayback audio{deviceName, getFormat(context->streamInfo.soundEncoding), context->streamInfo.sampleRate,
                        context->streamInfo.channelNum};
     audio.startDevice();
     std::thread audioThread([&](){
-        audio.play(context.value(), resource);
+        audio.play(context.value(), dataPtr);
     });
-
-    auto histPtr = resource.getAsPtrUnsafe(context->header.seekSection->offset + 0x8);
 
     while (true) {
         char c;

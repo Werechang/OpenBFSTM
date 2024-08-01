@@ -5,10 +5,7 @@
 #include "../MemoryResource.h"
 #include "PlaybackFunctions.h"
 
-void AudioPlayback::play(const BfstmContext &context, MemoryResource &resource) {
-    auto *dataPtr = resource.getAsPtrUnsafe(
-            context.header.dataSection->offset + 0x8 + context.streamInfo.sampleDataOffset);
-
+void AudioPlayback::play(const BfstmContext &context, const void *dataPtr) {
     if (context.streamInfo.isLoop) {
         if (context.streamInfo.loopStart % context.streamInfo.blockSizeSamples != 0) {
             std::cerr << "Loop start is in the middle of a block!" << std::endl;

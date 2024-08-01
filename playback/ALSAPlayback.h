@@ -5,6 +5,7 @@
 #pragma once
 
 #include "AudioPlayback.h"
+
 extern "C" {
 #include <alsa/asoundlib.h>
 }
@@ -26,11 +27,13 @@ public:
 
     void seek(const BfstmContext &context, const void *histPtr, uint32_t block) override;
 
+    void join() override;
+
     uint32_t getDelayFrames() override;
 
     static std::vector<std::string> getDevices();
+
 protected:
-    void join() override;
 private:
     void setHWParams(snd_pcm_format_t format, unsigned int rate, unsigned int channelCount);
 
