@@ -62,14 +62,17 @@ void iterateAll() {
                 std::cerr << "Context could not be loaded." << std::endl;
                 continue;
             }
-            if (context->streamInfo.soundEncoding != SoundEncoding::DSP_ADPCM) {
-                std::cout << context->streamInfo.soundEncoding << " in: " << dir_entry.path() << std::endl;
+            if (context->header.regionSection) {
+                std::cout << "RegionInfo in: " << dir_entry.path() << std::endl;
             }
-            ++used[context->streamInfo.loopStart % context->streamInfo.blockSizeSamples];
+            if (context->streamInfo.channelNum > 8) {
+                std::cout << dir_entry.path() << std::endl;
+            }
+            ++used[context->streamInfo.channelNum];
         }
     }
     for (const auto &i: used) {
-        std::cout << std::hex << i.first << " : " << i.second << ' ';
+        std::cout << std::hex << i.first << " amt: " << std::dec << i.second << '\n';
     }
     std::cout << std::endl;
 }
@@ -96,59 +99,48 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    if (context->streamInfo.isLoop) {
-        std::cout << "Loop Start: " << context->streamInfo.loopStart << std::endl;
-        std::cout << "Loop End: " << context->streamInfo.loopEnd << std::endl;
+    if (!context->regionInfos.empty()) {
+        std::cout << "This audio file contains regions (" << context->regionInfos.size()
+                  << " in total). Enter 'r' to increment the region counter." << std::endl;
     }
+
     std::cout << "Length: " << (context->streamInfo.blockSizeSamples * (context->streamInfo.blockCountPerChannel - 1) +
                                 context->streamInfo.lastBlockSizeSamples) / context->streamInfo.sampleRate << "s"
               << std::endl;
-
-    auto deviceName = "pipewire";
-    if (argc > 2) {
-        deviceName = argv[2];
-    }
-    auto devices = ALSAPlayback::getDevices();
-    bool hasDevice = false;
-    for (const auto &device: devices) {
-        if (device == deviceName) hasDevice = true;
-    }
-    if (!hasDevice) {
-        std::cerr << "Playback Device " << deviceName <<
-                  " not found! Specify a device with the third argument.\nAvailable devices:\n";
-        for (const auto &device: devices) {
-            std::cerr << device << '\n';
-        }
-        return 0;
-    }
+    std::cout << "Channel count: " << static_cast<uint32_t>(context->streamInfo.channelNum) << std::endl;
 
     if (context->streamInfo.isLoop) {
+        std::cout << "Loop Start: " << context->streamInfo.loopStart << std::endl;
+        std::cout << "Loop End: " << context->streamInfo.sampleCount << std::endl;
         std::cout << "This audio file loops. Write 's' to stop." << std::endl;
     }
 
-    auto *dataPtr = resource.getAsPtrUnsafe(
+    auto dataPtr = resource.getAsPtrUnsafe(
             context->header.dataSection->offset + 0x8 + context->streamInfo.sampleDataOffset);
     auto histPtr = resource.getAsPtrUnsafe(context->header.seekSection->offset + 0x8);
 
-    ALSAPlayback audio{deviceName, getFormat(context->streamInfo.soundEncoding), context->streamInfo.sampleRate,
-                       context->streamInfo.channelNum};
+    ALSAPlayback audio{argc > 2 ? argv[2] : std::string("pipewire"), getFormat(context->streamInfo.soundEncoding),
+                       context->streamInfo.sampleRate,
+                       context->streamInfo.channelNum < 2 ? 1u : 2u};
     audio.startDevice();
-    std::thread audioThread([&](){
+    std::thread audioThread([&]() {
         audio.play(context.value(), dataPtr);
     });
 
+    bool isPaused = false;
     while (true) {
         char c;
         std::cin >> c;
         switch (c) {
-            case 's': audio.stop();
+            case 's':
+                audio.stop();
                 audioThread.join();
                 return 0;
-            case 'p': audio.pause(true);
+            case 'p':
+                isPaused = !isPaused;
+                audio.pause(isPaused);
                 break;
-            case 'c': audio.pause(false);
-                break;
-            case 'r':
+            case 'g':
                 uint32_t block;
                 std::cin >> block;
                 if (block >= context->streamInfo.blockCountPerChannel) {
@@ -156,6 +148,26 @@ int main(int argc, char **argv) {
                     break;
                 }
                 audio.seek(context.value(), histPtr, block);
+                break;
+            case 'r':
+                if (context->regionInfos.empty()) {
+                    std::cout << "This track does not have regions!" << std::endl;
+                    break;
+                }
+                audio.incRegion();
+                break;
+            case 'c':
+                uint32_t channel;
+                std::cin >> channel;
+                if (context->streamInfo.channelNum <= 2) {
+                    std::cout << "Channel index can't be specified since this track doesn't have enough channels."
+                              << std::endl;
+                } else if (channel * 2 > context->streamInfo.channelNum - 2) {
+                    std::cout << "Channel index too big! Max index is: " << (context->streamInfo.channelNum - 2) / 2
+                              << std::endl;
+                } else {
+                    audio.setChannel(channel * 2);
+                }
                 break;
             default:
                 continue;

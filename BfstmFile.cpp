@@ -35,12 +35,12 @@ readChannelInfo(InMemoryStream &stream, SoundEncoding encoding) {
             coefficient[0] = stream.readS16();
             coefficient[1] = stream.readS16();
         }
-        dsp.predScale = stream.readU16();
-        dsp.yn1 = stream.readS16();
-        dsp.yn2 = stream.readS16();
-        dsp.loopPredScale = stream.readU16();
-        dsp.loopYn1 = stream.readS16();
-        dsp.loopYn2 = stream.readS16();
+        dsp.startContext.header = stream.readU16();
+        dsp.startContext.yn1 = stream.readS16();
+        dsp.startContext.yn2 = stream.readS16();
+        dsp.loopContext.header = stream.readU16();
+        dsp.loopContext.yn1 = stream.readS16();
+        dsp.loopContext.yn2 = stream.readS16();
         return {dsp};
     } else if (encoding == SoundEncoding::IMA_ADPCM) {
         std::cerr << "IMA ADPCM Channel Info not yet supported!" << std::endl;
@@ -72,6 +72,7 @@ SectionInfo readSectionInfo(InMemoryStream &stream) {
 }
 
 std::optional<BfstmContext> readBfstm(const MemoryResource &resource) {
+    // TODO crc32check available from version 5
     InMemoryStream stream{resource};
     BfstmContext context{};
     BfstmHeader &header = context.header;
@@ -86,6 +87,9 @@ std::optional<BfstmContext> readBfstm(const MemoryResource &resource) {
     }
     header.headerSize = stream.readU16();
     header.version = stream.readU32();
+    if (header.version != 0x60100)
+        std::cout << "Warning: BFSTM version might not be supported. (0x" << std::hex << header.version << std::dec << ')'
+                  << std::endl;
     header.fileSize = stream.readU32();
     header.sectionCount = stream.readU16();
     stream.skip(2);
@@ -104,6 +108,8 @@ std::optional<BfstmContext> readBfstm(const MemoryResource &resource) {
                 header.regionSection = section;
                 break;
             case 0x4004:
+                // Shouldn't be used
+                std::cout << "Warning: pdat section should be unused. Is the file the right version?" << std::endl;
                 header.pdatSection = section;
                 break;
             default:
@@ -121,23 +127,14 @@ std::optional<BfstmContext> readBfstm(const MemoryResource &resource) {
     BfstmInfo &info = context.info;
     info.magic = stream.readU32();
     info.sectionSize = stream.readU32();
-    // TODO track info flag
-    for (int i = 0; i < 3; ++i) {
-        switch (auto entry = readReferenceEntry(stream); entry.flag) {
-            case 0x4100:
-                info.streamInfo = entry;
-                break;
-            case 0x0101:
-                info.channelInfo = entry;
-                break;
-            case 0x0000:
-                break;
-            default:
-                std::cout << "Unknown Info Entry Flag: " << std::hex << entry.flag << std::dec << std::endl;
-                break;
-        }
-    }
+    auto strInf = readReferenceEntry(stream);
+    if (strInf.flag == 0x4100) info.streamInfo = strInf;
+    auto trInf = readReferenceEntry(stream);
+    if (trInf.flag == 0x0101) info.trackInfo = trInf;
+    auto chInf = readReferenceEntry(stream);
+    if (chInf.flag == 0x0101) info.channelInfo = chInf;
     if (!info.streamInfo) {
+        std::cerr << "No stream info found!" << std::endl;
         return {};
     }
 
@@ -150,7 +147,7 @@ std::optional<BfstmContext> readBfstm(const MemoryResource &resource) {
     streamInfo.regionNum = stream.readU8();
     streamInfo.sampleRate = stream.readU32();
     streamInfo.loopStart = stream.readU32();
-    streamInfo.loopEnd = stream.readU32();
+    streamInfo.sampleCount = stream.readU32();
     streamInfo.blockCountPerChannel = stream.readU32();
     streamInfo.blockSizeBytes = stream.readU32();
     streamInfo.blockSizeSamples = stream.readU32();
@@ -167,20 +164,28 @@ std::optional<BfstmContext> readBfstm(const MemoryResource &resource) {
     streamInfo.regionInfoFlag = stream.readU16();
     stream.skip(2);
     streamInfo.regionInfoOffset = stream.readS32();
-    streamInfo.origLoopStart = stream.readU32();
-    streamInfo.origLoopEnd = stream.readU32();
+    if (header.version > 0x40000) {
+        streamInfo.loopStartUnaligned = stream.readU32();
+        streamInfo.loopEndUnaligned = stream.readU32();
+    }
+    if (header.version >= 0x50000) {
+        streamInfo.checksum = stream.readU32();
+    }
 
     // Track Info
     if (info.trackInfo) {
         size_t startOff = header.infoSection->offset + 0x8 + info.trackInfo->offset;
         stream.seek(startOff);
         uint32_t refCount = stream.readU32();
+        if (refCount > 8) {
+            std::cout << "Warning: Track info has more than 8 references, but only 8 are supported." << std::endl;
+            refCount = 8;
+        }
         auto offsets = std::vector<int32_t>(refCount);
         for (int i = 0; i < refCount; ++i) {
             auto refEntry = readReferenceEntry(stream);
-            // TODO track info entry flag
             std::cout << std::hex << refEntry.flag << std::endl;
-            if (refEntry.flag != 0x0) {
+            if (refEntry.flag == 0x4101) {
                 offsets[i] = refEntry.offset;
             }
         }
@@ -215,12 +220,34 @@ std::optional<BfstmContext> readBfstm(const MemoryResource &resource) {
         std::cerr << "Channel Number does not match channel info number!" << std::endl;
     }
 
+    if (header.regionSection) {
+        stream.seek(header.regionSection->offset);
+        BfstmRegion region{};
+        region.magic = stream.readU32();
+        if (region.magic != 0x4e474552) {
+            std::cerr << "Region section invalid!" << std::endl;
+        }
+        region.sectionSize = stream.readU32();
+        uint32_t baseOff = header.regionSection->offset + 0x8 + streamInfo.regionInfoOffset;
+        for (int i = 0; i < streamInfo.regionNum; ++i) {
+            stream.seek(baseOff + i * streamInfo.regionInfoSize);
+            BfstmRegionInfo regInfo{};
+            regInfo.startSample = stream.readU32();
+            regInfo.endSample = stream.readU32();
+
+            auto ctx = std::vector<DSPAdpcmContext>(streamInfo.channelNum);
+            for (int j = 0; j < streamInfo.channelNum; ++j) {
+                ctx[j] = DSPAdpcmContext{stream.readU16(), stream.readS16(), stream.readS16()};
+            }
+            context.regionInfos.emplace_back(regInfo, ctx);
+        }
+    }
+
     if (header.seekSection) {
         stream.seek(header.seekSection->offset);
         BfstmSeek seek{};
         seek.magic = stream.readU32();
         seek.sectionSize = stream.readU32();
-        // TODO Seek hist info
     }
 
     stream.seek(header.dataSection->offset);
@@ -229,6 +256,10 @@ std::optional<BfstmContext> readBfstm(const MemoryResource &resource) {
     data.sectionSize = stream.readU32();
 
     return context;
+}
+
+void writeStreamInfo(OutMemoryStream &stream, SoundEncoding encoding) {
+    stream.writeU8(static_cast<uint8_t>(encoding));
 }
 
 void writeBfstm(OutMemoryStream &stream, bool le) {
@@ -243,6 +274,11 @@ void writeBfstm(OutMemoryStream &stream, bool le) {
     stream.writeU16(0x4000);
     stream.writeU16(0);
     stream.writeS32(0x40);
+    //stream.writeU32(size);
     // seek
+    stream.writeU16(0x4001);
+    stream.writeU16(0);
+    //stream.writeS32(off);
+    //stream.writeU32(size);
     // data
 }

@@ -26,12 +26,16 @@ inline short Clamp16(const int value) {
     return static_cast<short>(value);
 }
 
-static void DSPADPCMDecode(const uint8_t *src, short *dst, short &yn1, short &yn2, const int16_t coefs[8][2], const uint32_t sampleCount) {
-    //Each DSP-ADPCM frame is 8 bytes long. It contains 1 header byte, and 7 sample bytes.
+static void DSPADPCMDecode(const uint8_t *src, short *dst, short &yn1, short &yn2, const int16_t coefs[8][2],
+                           const uint32_t sampleCount, const uint32_t startSample) {
+    //Each DSP-ADPCM group is 8 bytes long. It contains 1 header byte, and 7 sample bytes. so 8 bytes are 7 samples
+
+    uint32_t startHeaderIndex = startSample / 7 * 8;
 
     //Set initial values.
     uint32_t dstIndex = 0;
-    uint32_t srcIndex = 0;
+    uint32_t srcIndex = startHeaderIndex;
+    uint32_t remainingNotPlayed = startSample % 7;
 
     //Until all samples decoded.
     while (dstIndex < sampleCount) {
@@ -45,13 +49,12 @@ static void DSPADPCMDecode(const uint8_t *src, short *dst, short &yn1, short &yn
         short coef1 = coefs[coef_index][0];
         short coef2 = coefs[coef_index][1];
 
-        //7 sample bytes per frame.
+        //7 sample bytes per header.
         for (uint32_t b = 0; b < 7; b++) {
 
-            //Get byte.
             uint8_t byt = src[srcIndex++];
 
-            //2 samples per byte.
+            // 1 byte to 1 sample
             for (uint32_t s = 0; s < 2; s++) {
                 int8_t adpcm_nibble = s == 0 ? GetHighNibble(byt) : GetLowNibble(byt);
                 short sample = Clamp16(
@@ -59,7 +62,9 @@ static void DSPADPCMDecode(const uint8_t *src, short *dst, short &yn1, short &yn
 
                 yn2 = yn1;
                 yn1 = sample;
-                dst[dstIndex++] = sample;
+                if (remainingNotPlayed > 0) --remainingNotPlayed;
+                else
+                    dst[dstIndex++] = sample;
 
                 if (dstIndex >= sampleCount) break;
             }

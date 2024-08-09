@@ -27,6 +27,19 @@ public:
 
     virtual void seek(const BfstmContext &context, const void *histPtr, uint32_t block);
 
+    /**
+     * Important! No check if this track has regions!
+     */
+    void incRegion();
+
+    /**
+     *
+     * @param channelIndex No oob check! DIY
+     */
+    void setChannel(uint32_t channelIndex) {
+        m_ChannelIndex = channelIndex;
+    }
+
     virtual void stop() {
         m_ShouldStop = true;
         m_Paused = false;
@@ -57,4 +70,8 @@ private:
     std::shared_ptr<int16_t[][2]> m_Yn;
     std::mutex m_WriteAudio;
     std::atomic_uint32_t m_NextBlock = 0;
+    std::atomic_uint32_t m_RegionIdx = -1;
+    std::atomic_uint32_t m_RegStartSample;
+    std::atomic_uint32_t m_RegEndSample;
+    std::atomic_uint32_t m_ChannelIndex = 0;
 };

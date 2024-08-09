@@ -31,14 +31,16 @@ struct BfstmSeek {
     uint32_t sectionSize;
 };
 
-struct BfstmDSPADPCMChannelInfo {
-    int16_t coefficients[8][2];
-    uint16_t predScale;
+struct DSPAdpcmContext {
+    uint16_t header;
     int16_t yn1;
     int16_t yn2;
-    uint16_t loopPredScale;
-    int16_t loopYn1;
-    int16_t loopYn2;
+};
+
+struct BfstmDSPADPCMChannelInfo {
+    int16_t coefficients[8][2];
+    DSPAdpcmContext startContext;
+    DSPAdpcmContext loopContext;
 };
 
 struct BfstmIMAADPCMChannelInfo {
@@ -97,7 +99,7 @@ struct BfstmStreamInfo {
     uint8_t regionNum;
     uint32_t sampleRate;
     uint32_t loopStart;
-    uint32_t loopEnd;
+    uint32_t sampleCount;
     uint32_t blockCountPerChannel;
     uint32_t blockSizeBytes;
     uint32_t blockSizeSamples;
@@ -111,8 +113,19 @@ struct BfstmStreamInfo {
     uint16_t regionInfoSize;
     uint16_t regionInfoFlag;
     int32_t regionInfoOffset;
-    uint32_t origLoopStart;
-    uint32_t origLoopEnd;
+    uint32_t loopStartUnaligned;
+    uint32_t loopEndUnaligned;
+    uint32_t checksum;
+};
+
+struct BfstmRegionInfo {
+    uint32_t startSample;
+    uint32_t endSample;
+};
+
+struct BfstmRegion {
+    uint32_t magic;
+    uint32_t sectionSize;
 };
 
 struct BfstmInfo {
@@ -151,6 +164,7 @@ struct BfstmContext {
     BfstmStreamInfo streamInfo{};
     std::vector<BfstmTrackInfo> trackInfos{};
     std::vector<std::variant<BfstmDSPADPCMChannelInfo, BfstmIMAADPCMChannelInfo>> channelInfos{};
+    std::vector<std::pair<BfstmRegionInfo, std::vector<DSPAdpcmContext>>> regionInfos{};
 };
 
 std::optional<std::variant<BfstmDSPADPCMChannelInfo, BfstmIMAADPCMChannelInfo>>
