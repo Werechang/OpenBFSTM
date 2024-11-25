@@ -8,6 +8,7 @@
 #include "MemoryResource.h"
 #include "playback/ALSAPlayback.h"
 #include "DSPADPCMCodec.h"
+#include "Window.h"
 
 /*        D | E
  * BFSAR  - | -
@@ -127,8 +128,14 @@ int main(int argc, char **argv) {
         audio.play(context.value(), dataPtr);
     });
 
+    Window window{};
+
     bool isPaused = false;
-    while (true) {
+    while (!window.shouldClose()) {
+        window.preDraw();
+        window.draw();
+        window.afterDraw();
+        /*
         char c;
         std::cin >> c;
         switch (c) {
@@ -171,6 +178,8 @@ int main(int argc, char **argv) {
                 break;
             default:
                 continue;
-        }
+        }*/
     }
+    audio.stop();
+    audioThread.join();
 }
