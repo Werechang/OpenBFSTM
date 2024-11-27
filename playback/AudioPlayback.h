@@ -7,7 +7,7 @@
 #include <thread>
 #include <memory>
 #include <condition_variable>
-#include "../BfstmFile.h"
+#include "../bfstm/BfstmFile.h"
 
 /**
  * This class is thread safe! It is recommended to call play() on a different thread.
@@ -49,6 +49,10 @@ public:
     virtual void pause(bool enable) {
         m_Paused = enable;
         m_Paused.notify_all();
+    }
+
+    bool isPaused() {
+        return m_Paused;
     }
 
     /**

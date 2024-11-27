@@ -9,6 +9,8 @@
 #include <imgui.h>
 
 class GLFWwindow;
+class AudioPlayback;
+class BfstmContext;
 
 class Window {
 public:
@@ -20,7 +22,7 @@ public:
 
     void preDraw();
 
-    void draw();
+    void draw(AudioPlayback& audio, BfstmContext& context);
 
     void afterDraw();
 private:

@@ -5,7 +5,7 @@
 #include <memory>
 #include <functional>
 #include <iostream>
-#include "../BfstmFile.h"
+#include "../bfstm/BfstmFile.h"
 #include "../DSPADPCMCodec.h"
 
 void initLoopDspYn(const BfstmContext &context, std::shared_ptr<int16_t[][2]> &dspYn) {

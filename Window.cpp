@@ -2,6 +2,8 @@
 // Created by cookieso on 14.08.24.
 //
 #include "Window.h"
+#include "playback/AudioPlayback.h"
+#include "implot/implot.h"
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
@@ -27,6 +29,7 @@ Window::Window() {
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     m_IO = &ImGui::GetIO();
 
     ImGui::StyleColorsDark();
@@ -40,6 +43,7 @@ Window::Window() {
 Window::~Window() {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
+    ImPlot::DestroyContext();
     ImGui::DestroyContext();
 
     glfwDestroyWindow(m_Window);
@@ -58,27 +62,41 @@ void Window::preDraw() {
     ImGui::NewFrame();
 }
 
-void Window::draw() {
-    bool someBool;
+void Window::draw(AudioPlayback& audio, BfstmContext& context) {
     {
         static float f = 0.0f;
         static int counter = 0;
 
         ImGui::Begin("Hello, world!");
 
-        ImGui::Text("This is some useful text.");
-        ImGui::Checkbox("Demo Window", &someBool);
-        ImGui::Checkbox("Another Window", &someBool);
+        uint32_t sampleCount = (context.streamInfo.blockSizeSamples * (context.streamInfo.blockCountPerChannel - 1) +
+                           context.streamInfo.lastBlockSizeSamples);
+        ImGui::Text("Length %is",  sampleCount / context.streamInfo.sampleRate);
+        ImGui::Text("Loop start sample %i", context.streamInfo.loopStart);
+        ImGui::Text("Loop end sample %i", context.streamInfo.loopEnd);
 
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-        ImGui::ColorEdit3("clear color", (float *) &m_ClearColor);
+        if (ImPlot::BeginPlot("##SampleDiagram")) {
+            //ImPlot::PlotLine("##Samples", nullptr, nullptr, sampleCount);
+            ImPlot::EndPlot();
+        }
 
-        if (ImGui::Button("Button"))
-            counter++;
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / m_IO->Framerate, m_IO->Framerate);
+        if (ImGui::Button("Pause")) {
+            audio.pause(!audio.isPaused());
+        }
+        if (context.streamInfo.channelNum > 2) {
+            ImGui::Text("Channels Groups: ");
+            for (int i = 0; i < context.streamInfo.channelNum; i += 2) {
+                ImGui::SameLine();
+                if (ImGui::Button(std::format("Channel Group {}", i/2).c_str())) {
+                    audio.setChannel(i);
+                }
+            }
+        }
+        if (!context.regionInfos.empty()) {
+            if (ImGui::Button("Increment region")) {
+                audio.incRegion();
+            }
+        }
         ImGui::End();
     }
     ImGui::Render();

@@ -4,6 +4,7 @@
 
 #pragma once
 #include <cstdint>
+#include "MemoryResource.h"
 
 struct SectionInfo {
     uint16_t flag;
@@ -21,4 +22,6 @@ struct ReferenceTable {
     ReferenceEntry entries[];
 };
 
+ReferenceEntry readReferenceEntry(InMemoryStream &stream);
 
+SectionInfo readSectionInfo(InMemoryStream &stream);
