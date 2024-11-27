@@ -20,6 +20,7 @@ struct BfgrpInfoEx {
 
 struct BfgrpFileEntry {
     uint32_t id;
+    uint16_t type;
     int32_t offset;
 };
 
@@ -27,7 +28,6 @@ struct BfgrpInfo {
     uint32_t magic;
     uint32_t size;
     uint32_t tableNum;
-    BfgrpFileEntry entries[];
 };
 
 struct BfgrpHeader {
@@ -37,6 +37,4 @@ struct BfgrpHeader {
     uint32_t version;
     uint32_t fileSize;
     uint16_t sectionNum;
-    uint16_t _pad0;
-    SectionInfo sectionInfo[];
 };

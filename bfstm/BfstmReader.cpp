@@ -154,7 +154,7 @@ bool BfstmReader::readBfstm() {
     info.sectionSize = m_Stream.readU32();
     auto strInf = readReferenceEntry(m_Stream);
     if (strInf.flag == 0x4100) info.streamInfo = strInf;
-    // TODO Only before version 2.0.1
+    // TODO Only used before version 2.0.1
     auto trInf = readReferenceEntry(m_Stream);
     if (trInf.flag == 0x0101) info.trackInfo = trInf;
     auto chInf = readReferenceEntry(m_Stream);
