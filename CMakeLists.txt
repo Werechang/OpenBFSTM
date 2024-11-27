@@ -14,7 +14,7 @@ add_executable(OpenBFSTM main.cpp
         bfstm/BfstmReader.cpp
         bfstm/BfstmReader.h
         playback/AudioPlayback.h
-        bfgrp/BfgrpFile.h
+        bfgrp/BfgrpStructs.h
         BfFile.h
         bfgrp/BfgrpReader.cpp
         bfgrp/BfgrpReader.h
@@ -31,7 +31,10 @@ add_executable(OpenBFSTM main.cpp
         implot/implot.h
         implot/implot_internal.h
         implot/implot_items.cpp
-        BfFile.cpp)
+        BfFile.cpp
+        bfsar/BfsarStructs.h
+        bfsar/BfsarReader.cpp
+        bfsar/BfsarReader.h)
 
 
 target_link_libraries(OpenBFSTM PRIVATE ALSA::ALSA glfw OpenGL imgui::imgui)

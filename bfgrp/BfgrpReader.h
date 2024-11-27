@@ -6,18 +6,22 @@
 
 #include <cstdint>
 #include <cstddef>
-#include "BfgrpFile.h"
+#include "BfgrpStructs.h"
 #include "../MemoryResource.h"
 
 class BfgrpReader {
 public:
     BfgrpReader(const MemoryResource& resource);
 
-    void readGroupItemLocInfo(int index);
+    bool readHeader();
+
+    bool readHeaderSections(BfgrpHeader& header);
+
+    bool readInfo();
+
+    void readFileLocationInfo();
 
     void readGroupItemExtraInfo();
 private:
     InMemoryStream m_Stream;
-    BfgrpHeader *m_Header;
-    std::optional<SectionInfo> m_Info, m_File, m_InfoEx;
 };

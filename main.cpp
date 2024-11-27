@@ -61,7 +61,7 @@ void iterateAll() {
         std::cout << std::hex << i.first << " amount: " << std::dec << i.second << '\n';
     }
     std::cout << std::endl;
-    //exit(0);
+    exit(0);
 }
 
 int main(int argc, char **argv) {
