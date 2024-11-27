@@ -4,17 +4,12 @@
 #include <functional>
 #include <filesystem>
 
-#include "BfstmFile.h"
+#include "bfstm/BfstmFile.h"
 #include "MemoryResource.h"
 #include "playback/ALSAPlayback.h"
 #include "DSPADPCMCodec.h"
 #include "Window.h"
-
-/*        D | E
- * BFSAR  - | -
- * BFGRP  - | -
- * BFSTM  X | -
- */
+#include "bfstm/BfstmReader.h"
 
 snd_pcm_format_t getFormat(const SoundEncoding encoding) {
     switch (encoding) {
@@ -58,24 +53,15 @@ void iterateAll() {
                 continue;
             }
             MemoryResource resource{in};
-            auto context = readBfstm(resource);
-            if (!context) {
-                std::cerr << "Context could not be loaded." << std::endl;
-                continue;
-            }
-            if (context->header.regionSection) {
-                std::cout << "RegionInfo in: " << dir_entry.path() << std::endl;
-            }
-            if (context->streamInfo.channelNum > 8) {
-                std::cout << dir_entry.path() << std::endl;
-            }
-            ++used[context->streamInfo.channelNum];
+            auto context = BfstmReader(resource).m_Context;
+            ++used[context.streamInfo.regionNum];
         }
     }
     for (const auto &i: used) {
-        std::cout << std::hex << i.first << " amt: " << std::dec << i.second << '\n';
+        std::cout << std::hex << i.first << " amount: " << std::dec << i.second << '\n';
     }
     std::cout << std::endl;
+    //exit(0);
 }
 
 int main(int argc, char **argv) {
@@ -83,6 +69,11 @@ int main(int argc, char **argv) {
         std::cout << "Please specify a file to play." << std::endl;
         return 0;
     }
+    MemoryResource outMem(0x400);
+    OutMemoryStream outBfstm{outMem};
+    BfstmWriteInfo outInfo{SoundEncoding::DSP_ADPCM, 2, true, 48000, 0, 1000};
+    writeBfstm(outBfstm, outInfo);
+    outMem.writeToFile("Exported.bfstm");
     iterateAll();
 
     std::ifstream in{
@@ -94,46 +85,46 @@ int main(int argc, char **argv) {
         return -1;
     }
     MemoryResource resource{in};
-    auto context = readBfstm(resource);
-    if (!context) {
+    BfstmReader bfstmReader(resource);
+    if (!bfstmReader.success) {
         std::cerr << "Context could not be loaded." << std::endl;
         return -1;
     }
+    auto context = bfstmReader.m_Context;
 
-    if (!context->regionInfos.empty()) {
-        std::cout << "This audio file contains regions (" << context->regionInfos.size()
+    if (!context.regionInfos.empty()) {
+        std::cout << "This audio file contains regions (" << context.regionInfos.size()
                   << " in total). Enter 'r' to increment the region counter." << std::endl;
     }
 
-    std::cout << "Length: " << (context->streamInfo.blockSizeSamples * (context->streamInfo.blockCountPerChannel - 1) +
-                                context->streamInfo.lastBlockSizeSamples) / context->streamInfo.sampleRate << "s"
+    std::cout << "Length: " << (context.streamInfo.blockSizeSamples * (context.streamInfo.blockCountPerChannel - 1) +
+                                context.streamInfo.lastBlockSizeSamples) / context.streamInfo.sampleRate << "s"
               << std::endl;
-    std::cout << "Channel count: " << static_cast<uint32_t>(context->streamInfo.channelNum) << std::endl;
+    std::cout << "Channel count: " << static_cast<uint32_t>(context.streamInfo.channelNum) << std::endl;
 
-    if (context->streamInfo.isLoop) {
-        std::cout << "Loop Start: " << context->streamInfo.loopStart << std::endl;
-        std::cout << "Loop End: " << context->streamInfo.sampleCount << std::endl;
+    if (context.streamInfo.isLoop) {
+        std::cout << "Loop Start: " << context.streamInfo.loopStart << std::endl;
+        std::cout << "Loop End: " << context.streamInfo.loopEnd << std::endl;
         std::cout << "This audio file loops. Write 's' to stop." << std::endl;
     }
 
     auto dataPtr = resource.getAsPtrUnsafe(
-            context->header.dataSection->offset + 0x8 + context->streamInfo.sampleDataOffset);
-    auto histPtr = resource.getAsPtrUnsafe(context->header.seekSection->offset + 0x8);
+            context.header.dataSection->offset + 0x8 + context.streamInfo.sampleDataOffset);
+    auto histPtr = resource.getAsPtrUnsafe(context.header.seekSection->offset + 0x8);
 
-    ALSAPlayback audio{argc > 2 ? argv[2] : std::string("pipewire"), getFormat(context->streamInfo.soundEncoding),
-                       context->streamInfo.sampleRate,
-                       context->streamInfo.channelNum < 2 ? 1u : 2u};
+    ALSAPlayback audio{argc > 2 ? argv[2] : std::string("pipewire"), getFormat(context.streamInfo.soundEncoding),
+                       context.streamInfo.sampleRate,
+                       context.streamInfo.channelNum < 2 ? 1u : 2u};
     audio.startDevice();
     std::thread audioThread([&]() {
-        audio.play(context.value(), dataPtr);
+        audio.play(context, dataPtr);
     });
 
     Window window{};
 
-    bool isPaused = false;
     while (!window.shouldClose()) {
         window.preDraw();
-        window.draw();
+        window.draw(audio, context);
         window.afterDraw();
         /*
         char c;

@@ -7,15 +7,17 @@
 #include <cstdint>
 #include <cstddef>
 #include "BfgrpFile.h"
+#include "../MemoryResource.h"
 
 class BfgrpReader {
 public:
-    BfgrpReader(uint8_t *data, size_t size);
+    BfgrpReader(const MemoryResource& resource);
 
     void readGroupItemLocInfo(int index);
+
+    void readGroupItemExtraInfo();
 private:
-    uint8_t *m_Data;
-    size_t m_Size;
+    InMemoryStream m_Stream;
     BfgrpHeader *m_Header;
     std::optional<SectionInfo> m_Info, m_File, m_InfoEx;
 };

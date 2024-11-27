@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <ostream>
 #include <vector>
-#include "BfFile.h"
+#include "../BfFile.h"
 
 class InMemoryStream;
 class OutMemoryStream;
@@ -67,6 +67,7 @@ struct BfstmTrackInfo {
     int32_t channelIndexTableOffset;
 };
 
+// TODO Code in smo returns dspadpcm if encoding >= 3
 enum class SoundEncoding : uint8_t {
     PCM8 = 0,
     PCM16 = 1,
@@ -99,7 +100,7 @@ struct BfstmStreamInfo {
     uint8_t regionNum;
     uint32_t sampleRate;
     uint32_t loopStart;
-    uint32_t sampleCount;
+    uint32_t loopEnd;
     uint32_t blockCountPerChannel;
     uint32_t blockSizeBytes;
     uint32_t blockSizeSamples;
@@ -167,15 +168,15 @@ struct BfstmContext {
     std::vector<std::pair<BfstmRegionInfo, std::vector<DSPAdpcmContext>>> regionInfos{};
 };
 
-std::optional<std::variant<BfstmDSPADPCMChannelInfo, BfstmIMAADPCMChannelInfo>>
-readChannelInfo(InMemoryStream &stream, SoundEncoding encoding);
+// TODO Regions
+// Info the user inputs for encoding to bfstm
+struct BfstmWriteInfo {
+    SoundEncoding encoding;
+    uint8_t channelNum;
+    bool isLoop;
+    uint32_t sampleRate;
+    uint32_t loopStart;
+    uint32_t loopEnd;
+};
 
-BfstmTrackInfo readTrackInfo(InMemoryStream &stream);
-
-ReferenceEntry readReferenceEntry(InMemoryStream &stream);
-
-SectionInfo readSectionInfo(InMemoryStream &stream);
-
-std::optional<BfstmContext> readBfstm(const MemoryResource &resource);
-
-void writeBfstm(OutMemoryStream &stream, bool le);
+void writeBfstm(OutMemoryStream &stream, const BfstmWriteInfo& writeInfo);

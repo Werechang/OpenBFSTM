@@ -2,7 +2,6 @@
 // Created by cookieso on 01.08.24.
 //
 #include "AudioPlayback.h"
-#include "../MemoryResource.h"
 #include "PlaybackFunctions.h"
 
 void AudioPlayback::play(const BfstmContext &context, const void *dataPtr) {
@@ -11,12 +10,12 @@ void AudioPlayback::play(const BfstmContext &context, const void *dataPtr) {
             std::cerr << "Loop start is in the middle of a block!" << std::endl;
             return;
         }
-        auto loopEndBlock = context.streamInfo.sampleCount / context.streamInfo.blockSizeSamples;
+        auto loopEndBlock = context.streamInfo.loopEnd / context.streamInfo.blockSizeSamples;
         if (loopEndBlock + 1 != context.streamInfo.blockCountPerChannel) {
             std::cerr << "Loop end is not in the last block!" << std::endl;
             return;
         }
-        if (context.streamInfo.sampleCount % context.streamInfo.blockSizeSamples !=
+        if (context.streamInfo.loopEnd % context.streamInfo.blockSizeSamples !=
             context.streamInfo.lastBlockSizeSamples) {
             std::cerr << "Loop end is in the middle of a block!" << std::endl;
             return;
