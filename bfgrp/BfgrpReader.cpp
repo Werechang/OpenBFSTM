@@ -9,12 +9,8 @@
 BfgrpReader::BfgrpReader(const MemoryResource& resource) : m_Stream(resource) {
 }
 
-void BfgrpReader::readGroupItemLocInfo(int index) {
-
-}
-
 bool BfgrpReader::readHeader() {
-    BfgrpHeader &header = m_Context.header;
+    BfgrpHeader header{};
     header.magic = m_Stream.readU32();
     header.bom = m_Stream.readU16();
     if (header.bom != 0xFEFF) {

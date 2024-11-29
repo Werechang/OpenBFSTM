@@ -11,6 +11,15 @@ struct BfsarFile {
 };
 
 struct BfsarInfo {
+    uint32_t magic;
+    uint32_t sectionSize;
+};
+
+struct BfsarLutEntry {
+    bool a;
+    uint16_t b;
+    uint32_t c;
+    uint32_t d;
 
 };
 
@@ -21,7 +30,7 @@ struct BfsarStringEntry {
 
 struct BfsarStringTable {
     uint32_t magic;
-    uint16_t sectionSize;
+    uint32_t sectionSize;
     int32_t stringTableOff;
     int32_t lutOffset;
 };

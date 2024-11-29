@@ -22,6 +22,10 @@ public:
 
     bool readLut();
 
+    void printLutEntry(uint32_t baseOff, const std::string& prefix, bool isLeft);
+
+    bool readInfo();
+
     std::optional<BfsarStringEntry> readStrTbl();
 private:
     InMemoryStream m_Stream;
