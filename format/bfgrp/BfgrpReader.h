@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <cstddef>
 #include "BfgrpStructs.h"
-#include "../MemoryResource.h"
+#include "../../MemoryResource.h"
 
 class BfgrpReader {
 public:

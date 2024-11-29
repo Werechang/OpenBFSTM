@@ -7,7 +7,7 @@
 #include <thread>
 #include <memory>
 #include <condition_variable>
-#include "../bfstm/BfstmFile.h"
+#include "../format/bfstm/BfstmFile.h"
 
 /**
  * This class is thread safe! It is recommended to call play() on a different thread.

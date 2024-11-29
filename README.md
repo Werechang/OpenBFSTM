@@ -13,3 +13,4 @@ different kinds of audio files used in Super Mario Odyssey.
 - imgui
 - implot
 - https://mk8.tockdom.com
+- https://github.com/Thealexbarney/VGAudio

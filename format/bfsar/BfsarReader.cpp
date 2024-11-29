@@ -3,7 +3,7 @@
 //
 
 #include "BfsarReader.h"
-#include "../BfFile.h"
+#include "../../BfFile.h"
 
 BfsarReader::BfsarReader(const MemoryResource &resource) : m_Stream(resource) {
     readHeader();

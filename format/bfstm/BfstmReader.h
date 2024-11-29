@@ -6,7 +6,7 @@
 
 
 #include "BfstmFile.h"
-#include "../MemoryResource.h"
+#include "../../MemoryResource.h"
 
 class BfstmReader {
 public:

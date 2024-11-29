@@ -5,8 +5,8 @@
 #include <memory>
 #include <functional>
 #include <iostream>
-#include "../bfstm/BfstmFile.h"
-#include "../DSPADPCMCodec.h"
+#include "../format/bfstm/BfstmFile.h"
+#include "../codec/DspADPCM.h"
 
 void initLoopDspYn(const BfstmContext &context, std::shared_ptr<int16_t[][2]> &dspYn) {
     for (int i = 0; i < context.streamInfo.channelNum; ++i) {
@@ -95,8 +95,20 @@ int decodeFrameBlockDSP(uint32_t channelNum, uint32_t startChannel, uint32_t fra
     for (uint32_t j = startChannel; j < channelNum + startChannel; ++j) {
         const auto &block = decodedBlocks.emplace_back(std::make_unique_for_overwrite<int16_t[]>(frameCount));
         auto *start = reinterpret_cast<uint8_t *>(reinterpret_cast<size_t>(offsetDataPtr) + j * thisBlockSizeRaw);
-        DSPADPCMDecode(start, block.get(), dspYn[j][0], dspYn[j][1],
-                       coefficients[j], frameCount, startSample);
+        dspadpcm::decode(start, block.get(), dspYn[j][0], dspYn[j][1],
+                         coefficients[j], frameCount, startSample);
+        auto calcedCoefs = dspadpcm::calculateCoefficients(block.get(), frameCount);
+        static bool wasPrinted = false;
+        if (!wasPrinted) {
+            for (int i = 0; i < 8; ++i) {
+                for (int k = 0; k < 2; ++k) {
+                    std::cout << "Coefficients Real[" << i << "][" << k << "] = " << coefficients[j][i][k] << " Calc["
+                              << i << "][" << k << "] = " << calcedCoefs[k + i * 2] << std::endl;
+                }
+            }
+            wasPrinted = true;
+        }
+
     }
     writeFun(reinterpret_cast<void **>(decodedBlocks.data()), frameCount);
     return 0;

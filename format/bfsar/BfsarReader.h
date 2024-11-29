@@ -5,7 +5,7 @@
 #pragma once
 
 
-#include "../MemoryResource.h"
+#include "../../MemoryResource.h"
 #include "BfsarStructs.h"
 
 class BfsarReader {

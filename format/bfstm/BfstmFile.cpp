@@ -4,7 +4,7 @@
 
 #include "BfstmFile.h"
 
-#include "../MemoryResource.h"
+#include "../../MemoryResource.h"
 
 bool BfstmData::verifyData() const {
     return this->magic == 0x41544144;

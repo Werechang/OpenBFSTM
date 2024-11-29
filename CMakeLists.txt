@@ -9,15 +9,15 @@ find_package(ALSA REQUIRED)
 
 add_executable(OpenBFSTM main.cpp
         MemoryResource.h
-        bfstm/BfstmFile.cpp
-        bfstm/BfstmFile.h
-        bfstm/BfstmReader.cpp
-        bfstm/BfstmReader.h
+        format/bfstm/BfstmFile.cpp
+        format/bfstm/BfstmFile.h
+        format/bfstm/BfstmReader.cpp
+        format/bfstm/BfstmReader.h
         playback/AudioPlayback.h
-        bfgrp/BfgrpStructs.h
+        format/bfgrp/BfgrpStructs.h
         BfFile.h
-        bfgrp/BfgrpReader.cpp
-        bfgrp/BfgrpReader.h
+        format/bfgrp/BfgrpReader.cpp
+        format/bfgrp/BfgrpReader.h
         DSPADPCMCodec.h
         playback/ALSAPlayback.cpp
         playback/ALSAPlayback.h
@@ -32,9 +32,11 @@ add_executable(OpenBFSTM main.cpp
         implot/implot_internal.h
         implot/implot_items.cpp
         BfFile.cpp
-        bfsar/BfsarStructs.h
-        bfsar/BfsarReader.cpp
-        bfsar/BfsarReader.h)
+        format/bfsar/BfsarStructs.h
+        format/bfsar/BfsarReader.cpp
+        format/bfsar/BfsarReader.h
+        codec/DspADPCM.cpp
+        codec/DspADPCM.h)
 
 
 target_link_libraries(OpenBFSTM PRIVATE ALSA::ALSA glfw OpenGL imgui::imgui)

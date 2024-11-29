@@ -4,13 +4,11 @@
 #include <functional>
 #include <filesystem>
 
-#include "bfstm/BfstmFile.h"
 #include "MemoryResource.h"
 #include "playback/ALSAPlayback.h"
-#include "DSPADPCMCodec.h"
 #include "Window.h"
-#include "bfstm/BfstmReader.h"
-#include "bfsar/BfsarReader.h"
+#include "format/bfsar/BfsarReader.h"
+#include "format/bfstm/BfstmReader.h"
 
 snd_pcm_format_t getFormat(const SoundEncoding encoding) {
     switch (encoding) {
@@ -92,7 +90,7 @@ int main(int argc, char **argv) {
     // outMem.writeToFile("Exported.bfstm");
 
     //iterateAll();
-    testOne();
+    //testOne();
 
     std::ifstream in{
             argv[1],

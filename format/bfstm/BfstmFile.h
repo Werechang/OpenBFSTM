@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <ostream>
 #include <vector>
-#include "../BfFile.h"
+#include "../../BfFile.h"
 
 class InMemoryStream;
 class OutMemoryStream;
