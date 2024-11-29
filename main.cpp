@@ -4,16 +4,13 @@
 #include <functional>
 #include <filesystem>
 
-#include "BfstmFile.h"
+#include "bfstm/BfstmFile.h"
 #include "MemoryResource.h"
 #include "playback/ALSAPlayback.h"
 #include "DSPADPCMCodec.h"
-
-/*        D | E
- * BFSAR  - | -
- * BFGRP  - | -
- * BFSTM  X | -
- */
+#include "Window.h"
+#include "bfstm/BfstmReader.h"
+#include "bfsar/BfsarReader.h"
 
 snd_pcm_format_t getFormat(const SoundEncoding encoding) {
     switch (encoding) {
@@ -44,7 +41,7 @@ void parseOption(char option, char *value) {
 
 void iterateAll() {
     const std::filesystem::path path{
-            "/home/cookieso/switch/Games/RomFS/SUPER MARIO ODYSSEY v0 (0100000000010000)/SoundData/stream/"};
+            "/home/cookieso/Musik/bfsar/"};
     std::unordered_map<uint32_t, int32_t> used{};
     for (auto const &dir_entry: std::filesystem::directory_iterator{path}) {
         if (dir_entry.is_regular_file()) {
@@ -56,25 +53,31 @@ void iterateAll() {
                 std::cout << "File is invalid." << std::endl;
                 continue;
             }
+            std::cout << "Reading " << dir_entry.path() << std::endl;
             MemoryResource resource{in};
-            auto context = readBfstm(resource);
-            if (!context) {
-                std::cerr << "Context could not be loaded." << std::endl;
-                continue;
-            }
-            if (context->header.regionSection) {
-                std::cout << "RegionInfo in: " << dir_entry.path() << std::endl;
-            }
-            if (context->streamInfo.channelNum > 8) {
-                std::cout << dir_entry.path() << std::endl;
-            }
-            ++used[context->streamInfo.channelNum];
+            BfsarReader reader(resource);
         }
     }
     for (const auto &i: used) {
-        std::cout << std::hex << i.first << " amt: " << std::dec << i.second << '\n';
+        std::cout << std::hex << i.first << " amount: " << std::dec << i.second << '\n';
     }
     std::cout << std::endl;
+    exit(0);
+}
+
+void testOne() {
+    std::ifstream in{
+            "/home/cookieso/Musik/bfsar/BgmData.bfsar",
+            std::ios::binary
+    };
+    if (!in) {
+        std::cout << "File is invalid." << std::endl;
+    } else {
+        std::cout << "Reading... " << std::endl;
+        MemoryResource resource{in};
+        BfsarReader reader(resource);
+    }
+    exit(0);
 }
 
 int main(int argc, char **argv) {
@@ -82,7 +85,14 @@ int main(int argc, char **argv) {
         std::cout << "Please specify a file to play." << std::endl;
         return 0;
     }
-    iterateAll();
+    // MemoryResource outMem(0x400);
+    // OutMemoryStream outBfstm{outMem};
+    // BfstmWriteInfo outInfo{SoundEncoding::DSP_ADPCM, 2, true, 48000, 0, 1000};
+    // writeBfstm(outBfstm, outInfo);
+    // outMem.writeToFile("Exported.bfstm");
+
+    //iterateAll();
+    testOne();
 
     std::ifstream in{
             argv[1],
@@ -93,42 +103,48 @@ int main(int argc, char **argv) {
         return -1;
     }
     MemoryResource resource{in};
-    auto context = readBfstm(resource);
-    if (!context) {
+    BfstmReader bfstmReader(resource);
+    if (!bfstmReader.success) {
         std::cerr << "Context could not be loaded." << std::endl;
         return -1;
     }
+    auto context = bfstmReader.m_Context;
 
-    if (!context->regionInfos.empty()) {
-        std::cout << "This audio file contains regions (" << context->regionInfos.size()
+    if (!context.regionInfos.empty()) {
+        std::cout << "This audio file contains regions (" << context.regionInfos.size()
                   << " in total). Enter 'r' to increment the region counter." << std::endl;
     }
 
-    std::cout << "Length: " << (context->streamInfo.blockSizeSamples * (context->streamInfo.blockCountPerChannel - 1) +
-                                context->streamInfo.lastBlockSizeSamples) / context->streamInfo.sampleRate << "s"
+    std::cout << "Length: " << (context.streamInfo.blockSizeSamples * (context.streamInfo.blockCountPerChannel - 1) +
+                                context.streamInfo.lastBlockSizeSamples) / context.streamInfo.sampleRate << "s"
               << std::endl;
-    std::cout << "Channel count: " << static_cast<uint32_t>(context->streamInfo.channelNum) << std::endl;
+    std::cout << "Channel count: " << static_cast<uint32_t>(context.streamInfo.channelNum) << std::endl;
 
-    if (context->streamInfo.isLoop) {
-        std::cout << "Loop Start: " << context->streamInfo.loopStart << std::endl;
-        std::cout << "Loop End: " << context->streamInfo.sampleCount << std::endl;
+    if (context.streamInfo.isLoop) {
+        std::cout << "Loop Start: " << context.streamInfo.loopStart << std::endl;
+        std::cout << "Loop End: " << context.streamInfo.loopEnd << std::endl;
         std::cout << "This audio file loops. Write 's' to stop." << std::endl;
     }
 
     auto dataPtr = resource.getAsPtrUnsafe(
-            context->header.dataSection->offset + 0x8 + context->streamInfo.sampleDataOffset);
-    auto histPtr = resource.getAsPtrUnsafe(context->header.seekSection->offset + 0x8);
+            context.header.dataSection->offset + 0x8 + context.streamInfo.sampleDataOffset);
+    auto histPtr = resource.getAsPtrUnsafe(context.header.seekSection->offset + 0x8);
 
-    ALSAPlayback audio{argc > 2 ? argv[2] : std::string("pipewire"), getFormat(context->streamInfo.soundEncoding),
-                       context->streamInfo.sampleRate,
-                       context->streamInfo.channelNum < 2 ? 1u : 2u};
+    ALSAPlayback audio{argc > 2 ? argv[2] : std::string("pipewire"), getFormat(context.streamInfo.soundEncoding),
+                       context.streamInfo.sampleRate,
+                       context.streamInfo.channelNum < 2 ? 1u : 2u};
     audio.startDevice();
     std::thread audioThread([&]() {
-        audio.play(context.value(), dataPtr);
+        audio.play(context, dataPtr);
     });
 
-    bool isPaused = false;
-    while (true) {
+    Window window{};
+
+    while (!window.shouldClose()) {
+        window.preDraw();
+        window.draw(audio, context);
+        window.afterDraw();
+        /*
         char c;
         std::cin >> c;
         switch (c) {
@@ -171,6 +187,8 @@ int main(int argc, char **argv) {
                 break;
             default:
                 continue;
-        }
+        }*/
     }
+    audio.stop();
+    audioThread.join();
 }
