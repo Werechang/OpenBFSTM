@@ -10,6 +10,7 @@
 #include "DSPADPCMCodec.h"
 #include "Window.h"
 #include "bfstm/BfstmReader.h"
+#include "bfsar/BfsarReader.h"
 
 snd_pcm_format_t getFormat(const SoundEncoding encoding) {
     switch (encoding) {
@@ -40,7 +41,7 @@ void parseOption(char option, char *value) {
 
 void iterateAll() {
     const std::filesystem::path path{
-            "/home/cookieso/switch/Games/RomFS/SUPER MARIO ODYSSEY v0 (0100000000010000)/SoundData/stream/"};
+            "/home/cookieso/Musik/bfsar/"};
     std::unordered_map<uint32_t, int32_t> used{};
     for (auto const &dir_entry: std::filesystem::directory_iterator{path}) {
         if (dir_entry.is_regular_file()) {
@@ -52,9 +53,9 @@ void iterateAll() {
                 std::cout << "File is invalid." << std::endl;
                 continue;
             }
+            std::cout << "Reading " << dir_entry.path() << std::endl;
             MemoryResource resource{in};
-            auto context = BfstmReader(resource).m_Context;
-            ++used[context.streamInfo.regionNum];
+            BfsarReader reader(resource);
         }
     }
     for (const auto &i: used) {
@@ -64,17 +65,34 @@ void iterateAll() {
     exit(0);
 }
 
+void testOne() {
+    std::ifstream in{
+            "/home/cookieso/Musik/bfsar/BgmData.bfsar",
+            std::ios::binary
+    };
+    if (!in) {
+        std::cout << "File is invalid." << std::endl;
+    } else {
+        std::cout << "Reading... " << std::endl;
+        MemoryResource resource{in};
+        BfsarReader reader(resource);
+    }
+    exit(0);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         std::cout << "Please specify a file to play." << std::endl;
         return 0;
     }
-    MemoryResource outMem(0x400);
-    OutMemoryStream outBfstm{outMem};
-    BfstmWriteInfo outInfo{SoundEncoding::DSP_ADPCM, 2, true, 48000, 0, 1000};
-    writeBfstm(outBfstm, outInfo);
-    outMem.writeToFile("Exported.bfstm");
-    iterateAll();
+    // MemoryResource outMem(0x400);
+    // OutMemoryStream outBfstm{outMem};
+    // BfstmWriteInfo outInfo{SoundEncoding::DSP_ADPCM, 2, true, 48000, 0, 1000};
+    // writeBfstm(outBfstm, outInfo);
+    // outMem.writeToFile("Exported.bfstm");
+
+    //iterateAll();
+    testOne();
 
     std::ifstream in{
             argv[1],

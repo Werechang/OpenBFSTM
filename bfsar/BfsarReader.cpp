@@ -6,7 +6,7 @@
 #include "../BfFile.h"
 
 BfsarReader::BfsarReader(const MemoryResource &resource) : m_Stream(resource) {
-
+    readHeader();
 }
 
 bool BfsarReader::readHeader() {
@@ -23,7 +23,8 @@ bool BfsarReader::readHeader() {
     header.headerSize = m_Stream.readU16();
     header.version = m_Stream.readU32();
     if (header.version > 0x020400)
-        std::cout << "Warning: BFSAR version might not be supported. (0x" << std::hex << header.version << std::dec << ')'
+        std::cout << "Warning: BFSAR version might not be supported. (0x" << std::hex << header.version << std::dec
+                  << ')'
                   << std::endl;
     header.fileSize = m_Stream.readU32();
     header.sectionNum = m_Stream.readU16();
@@ -82,7 +83,16 @@ bool BfsarReader::readStrg() {
             stringEntries.emplace_back(entry.value());
         }
     }
+    for (auto entry: stringEntries) {
+        m_Stream.seek(strgOff + strTblOff + entry.offset);
+        std::string entryName;
+        for (int i = 0; i < entry.size - 1; ++i) {
+            entryName += m_Stream.readS8();
+        }
+        //std::cout << entryName << std::endl;
+    }
     m_Stream.seek(strgOff + lutOff);
+    readLut();
     return true;
 }
 
@@ -98,18 +108,93 @@ std::optional<BfsarStringEntry> BfsarReader::readStrTbl() {
     return BfsarStringEntry{offset, size};
 }
 
-bool BfsarReader::readLut() {
-    uint32_t unkIndex = m_Stream.readU32();
-    uint32_t lutCount = m_Stream.readU32();
-    for (int i = 0; i < lutCount; ++i) {
-        uint16_t endpoint = m_Stream.readU16();
-        uint16_t b = m_Stream.readU16();
-        uint32_t c = m_Stream.readU32();
-        uint32_t d = m_Stream.readU32();
-        uint32_t strTblIdx = m_Stream.readU32();
-        uint8_t fileType = m_Stream.readU8();
-        uint32_t fileId = m_Stream.readU32() & 0xffffff;
-        m_Stream.rewind(1);
+static int lutLeafCounter = 0;
+
+void BfsarReader::printLutEntry(uint32_t baseOff, const std::string &prefix, bool isLeft) {
+    uint16_t isLeaf = m_Stream.readU16();
+    uint16_t compareFunc = m_Stream.readU16();
+    uint32_t leftChild = m_Stream.readU32();
+    uint32_t rightChild = m_Stream.readU32();
+    uint32_t strTblIdx = m_Stream.readU32();
+    uint32_t itemId = m_Stream.readU32();
+    std::cout << prefix << (isLeft ? "├──" : "└──" );
+    if (strTblIdx != 0xffffffffu) {
+        std::cout << std::hex << strTblIdx << std::endl;
+    } else {
+        std::cout << std::dec << (compareFunc >> 3) << "*" << (compareFunc & 7) << std::endl;
     }
+    if (!isLeaf) {
+        m_Stream.seek(baseOff + leftChild * 0x5 * 0x4);
+        printLutEntry(baseOff, prefix + (isLeft ? "│   " : "    "), true);
+        m_Stream.seek(baseOff + rightChild * 0x5 * 0x4);
+        printLutEntry(baseOff, prefix + (isLeft ? "│   " : "    "), false);
+    } else if (itemId == 0xffffffffu) {
+        std::cerr << "Leaf node has item id!" << std::endl;
+    } else {
+        ++lutLeafCounter;
+    }
+}
+
+bool BfsarReader::readLut() {
+    uint32_t rootIndex = m_Stream.readU32();
+    uint32_t entryCount = m_Stream.readU32();
+    uint32_t lutStartOff = m_Stream.tell();
+    m_Stream.skip(rootIndex * 0x5 * 0x4);
+    printLutEntry(lutStartOff, "", false);
+    return false;
+}
+
+bool BfsarReader::readInfo() {
+    BfsarInfo info{};
+    uint32_t magic = m_Stream.readU32();
+    uint32_t size = m_Stream.readU32();
+    if (m_Stream.readU16() != 0x2100) {
+        std::cerr << "First entry in info section is not sound!" << std::endl;
+        return false;
+    }
+    m_Stream.skip(2);
+    int32_t soundOff = m_Stream.readS32();
+    if (m_Stream.readU16() != 0x2104) {
+        std::cerr << "Second entry in info section is not sound group!" << std::endl;
+        return false;
+    }
+    m_Stream.skip(2);
+    int32_t soundGroupOff = m_Stream.readS32();
+    if (m_Stream.readU16() != 0x2101) {
+        std::cerr << "Third entry in info section is not bank!" << std::endl;
+        return false;
+    }
+    m_Stream.skip(2);
+    int32_t bankOff = m_Stream.readS32();
+    if (m_Stream.readU16() != 0x2103) {
+        std::cerr << "Fourth entry in info section is not wave archive!" << std::endl;
+        return false;
+    }
+    m_Stream.skip(2);
+    int32_t waveArcOff = m_Stream.readS32();
+    if (m_Stream.readU16() != 0x2105) {
+        std::cerr << "Fifth entry in info section is not group info!" << std::endl;
+        return false;
+    }
+    m_Stream.skip(2);
+    int32_t groupInfoOff = m_Stream.readS32();
+    if (m_Stream.readU16() != 0x2102) {
+        std::cerr << "Sixth entry in info section is not player info!" << std::endl;
+        return false;
+    }
+    m_Stream.skip(2);
+    int32_t playerInfoOff = m_Stream.readS32();
+    if (m_Stream.readU16() != 0x2106) {
+        std::cerr << "Seventh entry in info section is not file info!" << std::endl;
+        return false;
+    }
+    m_Stream.skip(2);
+    int32_t fileInfoOff = m_Stream.readS32();
+    if (m_Stream.readU16() != 0x220B) {
+        std::cerr << "Eight entry in info section is not sound archive player info!" << std::endl;
+        return false;
+    }
+    m_Stream.skip(2);
+    int32_t soundArcPlayerInfoOff = m_Stream.readS32();
     return false;
 }
