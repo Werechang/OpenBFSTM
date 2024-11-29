@@ -23,7 +23,7 @@ bool BfgrpReader::readHeader() {
     header.headerSize = m_Stream.readU16();
     header.version = m_Stream.readU32();
     if (header.version != 0x10000)
-        std::cout << "Warning: BFSTM version might not be supported. (0x" << std::hex << header.version << std::dec << ')'
+        std::cout << "Warning: BFGRP version might not be supported. (0x" << std::hex << header.version << std::dec << ')'
                   << std::endl;
     header.fileSize = m_Stream.readU32();
     header.sectionNum = m_Stream.readU16();

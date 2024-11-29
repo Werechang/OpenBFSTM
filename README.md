@@ -6,8 +6,8 @@ different kinds of audio files used in Super Mario Odyssey.
 | File  | Decode | Encode | File Versions | Compatibility Notes |
 |-------|--------|--------|---------------|---------------------|
 | BFSTM | ✅      | ⬜️     | 6.1.0         |                     |
-| BFGRP | ⬜️     | ⬜️     |               |                     |
-| BFSAR | ⬜️     | ⬜️     |               |                     |
+| BFGRP | ⬜️     | ⬜️     | 1.0.0         |                     |
+| BFSAR | ⬜️     | ⬜️     | 2.4.0         |                     |
 
 ## Credits
 - imgui
