@@ -53,6 +53,8 @@ bool BfsarReader::readHeaderSections(BfsarHeader &header) {
     }
     m_Stream.seek(strgSection->offset);
     readStrg();
+    m_Stream.seek(infoSection->offset);
+    readInfo();
     return true;
 }
 
@@ -111,7 +113,8 @@ std::optional<BfsarStringEntry> BfsarReader::readStrTbl() {
 static int lutLeafCounter = 0;
 
 void BfsarReader::printLutEntry(uint32_t baseOff, const std::string &prefix, bool isLeft) {
-    uint16_t isLeaf = m_Stream.readU16();
+    uint16_t isLeaf = m_Stream.readU8();
+    m_Stream.skip(2);
     uint16_t compareFunc = m_Stream.readU16();
     uint32_t leftChild = m_Stream.readU32();
     uint32_t rightChild = m_Stream.readU32();
@@ -121,7 +124,7 @@ void BfsarReader::printLutEntry(uint32_t baseOff, const std::string &prefix, boo
     if (strTblIdx != 0xffffffffu) {
         std::cout << std::hex << strTblIdx << std::endl;
     } else {
-        std::cout << std::dec << (compareFunc >> 3) << "*" << (compareFunc & 7) << std::endl;
+        std::cout << std::dec << (compareFunc >> 3) << "*" << (~compareFunc & 7) << std::endl;
     }
     if (!isLeaf) {
         m_Stream.seek(baseOff + leftChild * 0x5 * 0x4);
@@ -138,6 +141,9 @@ void BfsarReader::printLutEntry(uint32_t baseOff, const std::string &prefix, boo
 bool BfsarReader::readLut() {
     uint32_t rootIndex = m_Stream.readU32();
     uint32_t entryCount = m_Stream.readU32();
+    if (rootIndex == 0xffffffff) {
+        return true;
+    }
     uint32_t lutStartOff = m_Stream.tell();
     m_Stream.skip(rootIndex * 0x5 * 0x4);
     printLutEntry(lutStartOff, "", false);
@@ -148,6 +154,7 @@ bool BfsarReader::readInfo() {
     BfsarInfo info{};
     uint32_t magic = m_Stream.readU32();
     uint32_t size = m_Stream.readU32();
+    uint32_t infoOff = m_Stream.tell();
     if (m_Stream.readU16() != 0x2100) {
         std::cerr << "First entry in info section is not sound!" << std::endl;
         return false;
@@ -196,5 +203,44 @@ bool BfsarReader::readInfo() {
     }
     m_Stream.skip(2);
     int32_t soundArcPlayerInfoOff = m_Stream.readS32();
+
+    m_Stream.seek(fileInfoOff + infoOff);
+    auto result = readInfoRef(0x220a);
+    for (auto entry : result) {
+        if (entry == 0) {
+            std::cout << "Entry 0" << std::endl;
+            continue;
+        }
+        m_Stream.seek(fileInfoOff + infoOff + entry);
+        if (m_Stream.readU32() == 0x220c) {
+            int32_t internalFileInfoOff = m_Stream.readS32();
+            uint32_t absOff = internalFileInfoOff + fileInfoOff + infoOff + entry - 8;
+            if (absOff == 0) continue;
+            m_Stream.seek(absOff);
+            m_Stream.skip(2);
+            m_Stream.skip(m_Stream.readS32());
+            std::cout << m_Stream.readU32() << std::endl;
+        }
+    }
     return false;
+}
+
+bool BfsarReader::readFile() {
+    return false;
+}
+
+std::vector<uint32_t> BfsarReader::readInfoRef(uint16_t requiredType) {
+    uint32_t entryCount = m_Stream.readU32();
+    std::vector<uint32_t> entryOffsets{};
+    for (int i = 0; i < entryCount; ++i) {
+        uint16_t type = m_Stream.readU16();
+        if (type != requiredType) {
+            std::cerr << std::hex << "Entry type is " << type << " but required was " << requiredType << std::endl;
+            m_Stream.skip(6);
+            continue;
+        }
+        m_Stream.skip(2);
+        entryOffsets.emplace_back(m_Stream.readS32());
+    }
+    return entryOffsets;
 }

@@ -7,7 +7,8 @@
 #include <cstdint>
 
 struct BfsarFile {
-
+    uint32_t magic;
+    uint32_t sectionSize;
 };
 
 struct BfsarInfo {

@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
     // outMem.writeToFile("Exported.bfstm");
 
     //iterateAll();
-    //testOne();
+    testOne();
 
     std::ifstream in{
             argv[1],

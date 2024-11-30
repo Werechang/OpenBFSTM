@@ -26,6 +26,10 @@ public:
 
     bool readInfo();
 
+    std::vector<uint32_t> readInfoRef(uint16_t requiredType);
+
+    bool readFile();
+
     std::optional<BfsarStringEntry> readStrTbl();
 private:
     InMemoryStream m_Stream;

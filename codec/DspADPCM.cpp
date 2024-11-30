@@ -8,6 +8,7 @@
 #include <cmath>
 #include <vector>
 #include <cstring>
+#include <memory>
 #include "DspADPCM.h"
 
 static int8_t nibbleToSHalfbyte[] = {0, 1, 2, 3, 4, 5, 6, 7, -8, -7, -6, -5, -4, -3, -2, -1};
@@ -350,7 +351,7 @@ namespace dspadpcm {
 
         /* Iterate though one frame at a time */
         for (int sample = 0, remaining = sampleCount; sample < sampleCount; sample += 14, remaining -= 14) {
-            pcmHistBuffer.fill(0);
+            std::fill_n(&pcmHistBuffer[14], 14, 0);
             memcpy(&pcmHistBuffer[14], &pcm16samples[sample], std::min(14, remaining));
 
             InnerProductMerge(vec1, pcmHistBuffer);
@@ -365,7 +366,7 @@ namespace dspadpcm {
                 }
             }
 
-            memcpy(&pcmHistBuffer[14], &pcmHistBuffer[0], 14);
+            memcpy(&pcmHistBuffer[0], &pcmHistBuffer[14], 14);
         }
 
         vec1[0] = 1.0;
@@ -407,4 +408,34 @@ namespace dspadpcm {
         }
         return coefs;
     }
+
+    /*std::unique_ptr<uint8_t> Encode(const int16_t *pcm, uint32_t sampleCount, const std::array<int16_t, 16> &coefficients) {
+        var adpcm = new byte[SampleCountToByteCount(sampleCount)];
+
+        var pcmBuffer = new short[2 + SamplesPerFrame];
+        var adpcmBuffer = new byte[BytesPerFrame];
+
+        pcmBuffer[0] = config.History2;
+        pcmBuffer[1] = config.History1;
+
+        int frameCount = sampleCount.DivideByRoundUp(SamplesPerFrame);
+        var buffers = new AdpcmEncodeBuffers();
+
+        for (int frame = 0; frame < frameCount; frame++)
+        {
+            int samplesToCopy = Math.Min(sampleCount - frame * SamplesPerFrame, SamplesPerFrame);
+            Array.Copy(pcm, frame * SamplesPerFrame, pcmBuffer, 2, samplesToCopy);
+            Array.Clear(pcmBuffer, 2 + samplesToCopy, SamplesPerFrame - samplesToCopy);
+
+            DspEncodeFrame(pcmBuffer, SamplesPerFrame, adpcmBuffer, coefs, buffers);
+
+            Array.Copy(adpcmBuffer, 0, adpcm, frame * BytesPerFrame, SampleCountToByteCount(samplesToCopy));
+
+            pcmBuffer[0] = pcmBuffer[14];
+            pcmBuffer[1] = pcmBuffer[15];
+            config.Progress?.ReportAdd(1);
+        }
+
+        return adpcm;
+    }*/
 }
