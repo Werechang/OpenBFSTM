@@ -26,6 +26,12 @@ public:
 
     bool readInfo();
 
+    bool readSoundInfo();
+
+    bool readSoundGroupInfo();
+
+    bool readBankInfo();
+
     std::vector<uint32_t> readInfoRef(uint16_t requiredType);
 
     bool readFile();
