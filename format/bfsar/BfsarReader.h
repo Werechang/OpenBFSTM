@@ -24,17 +24,27 @@ public:
 
     void printLutEntry(uint32_t baseOff, const std::string& prefix, bool isLeft);
 
-    bool readInfo();
+    std::optional<std::vector<int32_t>> readInfo();
 
-    bool readSoundInfo();
+    SoundInfo readSoundInfo();
 
-    bool readSoundGroupInfo();
+    SoundGroupInfo readSoundGroupInfo();
 
-    bool readBankInfo();
+    BankInfo readBankInfo();
+
+    WaveArchiveInfo readWaveArchiveInfo();
+
+    bool readGroupInfo();
+
+    bool readPlayerInfo();
+
+    int32_t readFileInfo();
+
+    bool readSoundArchivePlayerInfo();
 
     std::vector<uint32_t> readInfoRef(uint16_t requiredType);
 
-    bool readFile();
+    bool readFile(const std::vector<int32_t> &fileOffsets);
 
     std::optional<BfsarStringEntry> readStrTbl();
 private:

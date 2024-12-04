@@ -18,7 +18,6 @@ add_executable(OpenBFSTM main.cpp
         BfFile.h
         format/bfgrp/BfgrpReader.cpp
         format/bfgrp/BfgrpReader.h
-        DSPADPCMCodec.h
         playback/ALSAPlayback.cpp
         playback/ALSAPlayback.h
         playback/PlaybackFunctions.cpp
@@ -36,7 +35,9 @@ add_executable(OpenBFSTM main.cpp
         format/bfsar/BfsarReader.cpp
         format/bfsar/BfsarReader.h
         codec/DspADPCM.cpp
-        codec/DspADPCM.h)
+        codec/DspADPCM.h
+        format/bfsar/BfsarWriter.cpp
+        format/bfsar/BfsarWriter.h)
 
 
 target_link_libraries(OpenBFSTM PRIVATE ALSA::ALSA glfw OpenGL imgui::imgui)

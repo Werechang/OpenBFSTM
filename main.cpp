@@ -65,7 +65,7 @@ void iterateAll() {
 
 void testOne() {
     std::ifstream in{
-            "/home/cookieso/Musik/bfsar/AtmosCityDay.bfsar",
+            "/home/cookieso/Musik/bfsar/BgmData.bfsar",
             std::ios::binary
     };
     if (!in) {

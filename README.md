@@ -8,6 +8,11 @@ different kinds of audio files used in Super Mario Odyssey.
 | BFSTM | ✅       | ⬜      | 6.1.0         |                     |
 | BFGRP | ⬜       | ⬜      | 1.0.0         |                     |
 | BFSAR | ⬜       | ⬜      | 2.4.0         |                     |
+| BFSTP | ⬜       | ⬜      |               |                     |
+| BFWAR | ⬜       | ⬜      |               |                     |
+| BFWSD | ⬜       | ⬜      |               |                     |
+| BFBNK | ⬜       | ⬜      |               |                     |
+| BFSEQ | ⬜       | ⬜      |               |                     |
 
 ## Credits
 - imgui
