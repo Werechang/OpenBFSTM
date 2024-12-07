@@ -2,6 +2,7 @@
 // Created by cookieso on 6/24/24.
 //
 #pragma once
+
 #include <cstdint>
 #include <iostream>
 #include <istream>
@@ -10,6 +11,7 @@
 #include <fstream>
 
 class InMemoryStream;
+
 class OutMemoryStream;
 
 class MemoryResource {
@@ -39,9 +41,9 @@ public:
         return m_Data.data() + offset;
     }
 
-    void writeToFile(const char* file) {
+    void writeToFile(const char *file) {
         std::ofstream out{file, std::ios::binary};
-        out.write(reinterpret_cast<const char*>(m_Data.data()), m_Data.size());
+        out.write(reinterpret_cast<const char *>(m_Data.data()), m_Data.size());
         out.close();
     }
 
@@ -57,7 +59,7 @@ public:
     template<std::integral Num>
     Num readNum() {
         if (m_Pos + sizeof(Num) > m_Resource.m_Data.size()) throw std::out_of_range("Resource oob read");
-        Num res = *reinterpret_cast<const Num*>(m_Resource.getAsPtrUnsafe(m_Pos));
+        Num res = *reinterpret_cast<const Num *>(m_Resource.getAsPtrUnsafe(m_Pos));
         m_Pos += sizeof(Num);
         return res;
     }
@@ -115,7 +117,6 @@ private:
     size_t m_Pos = 0;
 };
 
-// TODO resize
 class OutMemoryStream {
 public:
     explicit OutMemoryStream(MemoryResource &resource) : m_Resource(resource) {
@@ -126,7 +127,7 @@ public:
         if (m_Pos + sizeof(Num) > m_Resource.m_Data.size()) {
             m_Resource.m_Data.resize(m_Pos + sizeof(Num));
         }
-        *reinterpret_cast<Num*>(m_Resource.getAsPtrUnsafe(m_Pos)) = data;
+        *reinterpret_cast<Num *>(m_Resource.getAsPtrUnsafe(m_Pos)) = data;
         m_Pos += sizeof(Num);
     }
 
@@ -197,8 +198,15 @@ public:
         return a;
     }
 
-    void writeBuffer(std::span<uint8_t> span) {
-        m_Resource.m_Data.insert(m_Resource.m_Data.begin() + m_Pos, span.begin(), span.end());
+    void writeBuffer(std::span<const uint8_t> span) {
+        uint32_t replaceCount = std::min(m_Resource.m_Data.size() - m_Pos, span.size());
+        if (replaceCount > 0) {
+            std::copy(span.begin(), span.begin() + replaceCount, m_Resource.m_Data.begin() + m_Pos);
+        }
+        if (replaceCount < span.size()) {
+            m_Resource.m_Data.insert(m_Resource.m_Data.begin() + m_Pos + replaceCount, span.begin() + replaceCount, span.end());
+        }
+        m_Pos += span.size();
     }
 
     bool swapBO = false;

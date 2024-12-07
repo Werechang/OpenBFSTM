@@ -38,5 +38,5 @@ private:
 private:
     InMemoryStream m_Stream;
     std::optional<BfgrpReadContext> m_Context;
-    uint32_t m_FileOffset;
+    uint32_t m_FileOffset = 0;
 };

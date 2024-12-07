@@ -19,7 +19,7 @@ struct BfgrpFileEntry {
 
 struct BfgrpNestedFile {
     uint32_t fileIndex;
-    std::span<uint8_t> file;
+    std::span<const uint8_t> file;
 };
 
 struct BfgrpWriteContext {

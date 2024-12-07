@@ -155,6 +155,5 @@ uint32_t BfgrpReader::readFile(const std::vector<BfgrpFileEntry> &entries) {
 
 std::span<const uint8_t> BfgrpReader::getFileData(uint32_t offset, uint32_t size) {
     if (!m_Context) return {};
-    m_Stream.seek(offset + m_FileOffset);
-    return m_Stream.getSpanAt(offset, size);
+    return m_Stream.getSpanAt(offset + m_FileOffset, size);
 }

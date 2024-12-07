@@ -9,7 +9,7 @@ BfgrpWriter::BfgrpWriter(MemoryResource &resource, const BfgrpWriteContext &cont
 }
 
 void BfgrpWriter::writeHeader(const BfgrpWriteContext &context) {
-    m_Stream.writeU32(0x46475250);
+    m_Stream.writeU32(0x50524746);
     m_Stream.writeU16(0xfeff);
     m_Stream.writeU16(0x40);
     m_Stream.writeU32(0x010000);
@@ -38,6 +38,7 @@ void BfgrpWriter::writeHeader(const BfgrpWriteContext &context) {
     m_Stream.seek(fileOffset + fileSize);
     uint32_t infxOffset = m_Stream.tell();
     uint32_t infxSize = writeInfx(context);
+    m_Stream.seek(infxOffset + infxSize);
 
     uint32_t size = m_Stream.tell();
 
@@ -87,6 +88,7 @@ uint32_t BfgrpWriter::writeFile(const BfgrpWriteContext &context) {
     uint32_t start = m_Stream.tell();
     m_Stream.writeU32(0x454c4946);
     uint32_t paddedSizeOff = m_Stream.skip(4);
+    m_Stream.fillToAlign(0x40);
     for (auto &file : context.files) {
         m_Stream.writeBuffer(file.file);
         m_Stream.fillToAlign(0x20);
@@ -101,7 +103,7 @@ uint32_t BfgrpWriter::writeFile(const BfgrpWriteContext &context) {
 uint32_t BfgrpWriter::writeInfx(const BfgrpWriteContext &context) {
     uint32_t start = m_Stream.tell();
     m_Stream.writeU32(0x58464e49);
-    uint32_t paddedSizeOff = m_Stream.skip(4);
+    uint32_t sizeOffset = m_Stream.skip(4);
     m_Stream.writeU32(context.dependencies.size());
 
     for (int i = 0; i < context.dependencies.size(); ++i) {
@@ -115,9 +117,8 @@ uint32_t BfgrpWriter::writeInfx(const BfgrpWriteContext &context) {
         m_Stream.writeU32(dep.loadFlags);
     }
 
-    m_Stream.fillToAlign(0x20);
-    uint32_t paddedSize = m_Stream.tell() - start;
-    m_Stream.seek(paddedSizeOff);
-    m_Stream.writeU32(paddedSize);
-    return 0;
+    uint32_t size = m_Stream.tell() - start;
+    m_Stream.seek(sizeOffset);
+    m_Stream.writeU32(size);
+    return size;
 }
