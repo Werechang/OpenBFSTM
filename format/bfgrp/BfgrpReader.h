@@ -11,17 +11,32 @@
 
 class BfgrpReader {
 public:
-    BfgrpReader(const MemoryResource& resource);
+    explicit BfgrpReader(const MemoryResource& resource);
 
-    bool readHeader();
+    bool wasReadSuccess() {
+        return m_Context.has_value();
+    }
 
-    bool readHeaderSections(BfgrpHeader& header);
+    BfgrpReadContext getContext() {
+        return m_Context.value();
+    }
 
-    bool readInfo();
+    std::span<const uint8_t> getFileData(uint32_t offset, uint32_t size);
 
-    void readFileLocationInfo();
+private:
+    std::optional<BfgrpReadContext> readHeader();
 
-    void readGroupItemExtraInfo();
+    std::optional<BfgrpReadContext> readHeaderSections();
+
+    std::optional<std::vector<BfgrpFileEntry>> readInfo();
+
+    uint32_t readFile(const std::vector<BfgrpFileEntry>& entries);
+
+    std::optional<BfgrpFileEntry> readFileLocationInfo();
+
+    std::optional<std::vector<BfgrpDepEntry>> readGroupItemExtraInfo();
 private:
     InMemoryStream m_Stream;
+    std::optional<BfgrpReadContext> m_Context;
+    uint32_t m_FileOffset;
 };

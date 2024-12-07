@@ -11,30 +11,23 @@ struct BfgrpDepEntry {
     uint32_t loadFlags;
 };
 
-struct BfgrpInfoEx {
-    uint32_t magic;
-    uint32_t size;
-    uint32_t tableNum;
-    BfgrpDepEntry entries[];
-};
-
 struct BfgrpFileEntry {
-    uint32_t id;
-    uint16_t type;
+    uint32_t fileIndex;
     int32_t offset;
-};
-
-struct BfgrpInfo {
-    uint32_t magic;
     uint32_t size;
-    uint32_t tableNum;
 };
 
-struct BfgrpHeader {
-    uint32_t magic;
-    uint16_t bom;
-    uint16_t headerSize;
-    uint32_t version;
-    uint32_t fileSize;
-    uint16_t sectionNum;
+struct BfgrpNestedFile {
+    uint32_t fileIndex;
+    std::span<uint8_t> file;
+};
+
+struct BfgrpWriteContext {
+    std::vector<BfgrpNestedFile> files{};
+    std::vector<BfgrpDepEntry> dependencies{};
+};
+
+struct BfgrpReadContext {
+    std::vector<BfgrpFileEntry> fileData{};
+    std::vector<BfgrpDepEntry> dependencies{};
 };

@@ -26,9 +26,7 @@ public:
         input.read(reinterpret_cast<std::istream::char_type *>(m_Data.data()), size);
     }
 
-    explicit MemoryResource(size_t size) {
-        m_Data.resize(size);
-    }
+    MemoryResource() = default;
 
     friend InMemoryStream;
     friend OutMemoryStream;
@@ -43,7 +41,7 @@ public:
 
     void writeToFile(const char* file) {
         std::ofstream out{file, std::ios::binary};
-        out.write(reinterpret_cast<const char*>(&m_Data[0]), m_Data.size());
+        out.write(reinterpret_cast<const char*>(m_Data.data()), m_Data.size());
         out.close();
     }
 
@@ -58,9 +56,9 @@ public:
 
     template<std::integral Num>
     Num readNum() {
-        if (pos + 1 + sizeof(Num) >= m_Resource.m_Data.size()) throw std::out_of_range("Resource oob read");
-        Num res = *reinterpret_cast<const Num*>(m_Resource.getAsPtrUnsafe(pos));
-        pos += sizeof(Num);
+        if (m_Pos + sizeof(Num) > m_Resource.m_Data.size()) throw std::out_of_range("Resource oob read");
+        Num res = *reinterpret_cast<const Num*>(m_Resource.getAsPtrUnsafe(m_Pos));
+        m_Pos += sizeof(Num);
         return res;
     }
 
@@ -89,28 +87,32 @@ public:
     }
 
     void skip(const size_t off) {
-        if (pos + off + 1 >= m_Resource.m_Data.size()) throw std::out_of_range("Resource oob skip");
-        pos += off;
+        if (m_Pos + off > m_Resource.m_Data.size()) throw std::out_of_range("Resource oob skip");
+        m_Pos += off;
     }
 
     void rewind(const size_t off) {
-        if (off > pos) throw std::out_of_range("Resource oob rewind");
-        pos -= off;
+        if (off > m_Pos) throw std::out_of_range("Resource oob rewind");
+        m_Pos -= off;
     }
 
     void seek(const size_t off) {
-        if (off + 1 >= m_Resource.m_Data.size()) throw std::out_of_range("Resource oob seek");
-        pos = off;
+        if (off > m_Resource.m_Data.size()) throw std::out_of_range("Resource oob seek");
+        m_Pos = off;
     }
 
     [[nodiscard]] size_t tell() const {
-        return pos;
+        return m_Pos;
+    }
+
+    std::span<const uint8_t> getSpanAt(uint32_t offset, uint32_t size) {
+        return {m_Resource.m_Data.begin() + offset, size};
     }
 
     bool swapBO = false;
 private:
     const MemoryResource &m_Resource;
-    size_t pos = 0;
+    size_t m_Pos = 0;
 };
 
 // TODO resize
@@ -121,9 +123,11 @@ public:
 
     template<std::integral Num>
     void writeNum(Num data) {
-        if (pos + 1 + sizeof(Num) >= m_Resource.m_Data.size()) throw std::out_of_range("Resource oob write");
-        *reinterpret_cast<Num*>(m_Resource.getAsPtrUnsafe(pos)) = data;
-        pos += sizeof(Num);
+        if (m_Pos + sizeof(Num) > m_Resource.m_Data.size()) {
+            m_Resource.m_Data.resize(m_Pos + sizeof(Num));
+        }
+        *reinterpret_cast<Num*>(m_Resource.getAsPtrUnsafe(m_Pos)) = data;
+        m_Pos += sizeof(Num);
     }
 
     void writeU8(uint8_t num) {
@@ -159,30 +163,46 @@ public:
     }
 
     size_t skip(const size_t off) {
-        if (pos + off + 1 >= m_Resource.m_Data.size()) throw std::out_of_range("Resource oob skip");
-        size_t oldPos = pos;
-        pos += off;
+        if (m_Pos + off > m_Resource.m_Data.size()) {
+            m_Resource.m_Data.resize(m_Pos + off);
+        }
+        size_t oldPos = m_Pos;
+        m_Pos += off;
         return oldPos;
     }
 
     void rewind(const size_t off) {
-        if (off > pos) throw std::out_of_range("Resource oob rewind");
-        pos -= off;
+        if (off > m_Pos) throw std::out_of_range("Resource oob rewind");
+        m_Pos -= off;
     }
 
     size_t seek(const size_t off) {
-        size_t oldPos = pos;
-        if (off + 1 >= m_Resource.m_Data.size()) throw std::out_of_range("Resource oob seek");
-        pos = off;
+        size_t oldPos = m_Pos;
+        if (off > m_Resource.m_Data.size()) {
+            m_Resource.m_Data.resize(off);
+        }
+        m_Pos = off;
         return oldPos;
     }
 
     [[nodiscard]] size_t tell() const {
-        return pos;
+        return m_Pos;
+    }
+
+    uint32_t fillToAlign(uint32_t alignment) {
+        uint32_t a = m_Pos % alignment;
+        if (a == 0) return 0;
+        a = alignment - a;
+        writeNull(a);
+        return a;
+    }
+
+    void writeBuffer(std::span<uint8_t> span) {
+        m_Resource.m_Data.insert(m_Resource.m_Data.begin() + m_Pos, span.begin(), span.end());
     }
 
     bool swapBO = false;
 private:
     MemoryResource &m_Resource;
-    size_t pos = 0;
+    size_t m_Pos = 0;
 };

@@ -37,7 +37,9 @@ add_executable(OpenBFSTM main.cpp
         codec/DspADPCM.cpp
         codec/DspADPCM.h
         format/bfsar/BfsarWriter.cpp
-        format/bfsar/BfsarWriter.h)
+        format/bfsar/BfsarWriter.h
+        format/bfgrp/BfgrpWriter.cpp
+        format/bfgrp/BfgrpWriter.h)
 
 
 target_link_libraries(OpenBFSTM PRIVATE ALSA::ALSA glfw OpenGL imgui::imgui)
