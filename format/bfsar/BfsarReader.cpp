@@ -2,40 +2,42 @@
 // Created by cookieso on 27.11.24.
 //
 
+#include <bitset>
 #include "BfsarReader.h"
 #include "../../BfFile.h"
 
 BfsarReader::BfsarReader(const MemoryResource &resource) : m_Stream(resource) {
-    readHeader();
+    m_Context = readHeader();
 }
 
-bool BfsarReader::readHeader() {
-    BfsarHeader header{};
-    header.magic = m_Stream.readU32();
-    header.bom = m_Stream.readU16();
-    if (header.bom != 0xFEFF) {
-        if (header.bom != 0xFFFE) return false;
+std::optional<BfsarReadContext> BfsarReader::readHeader() {
+    uint32_t magic = m_Stream.readU32();
+    uint16_t bom = m_Stream.readU16();
+    if (bom != 0xFEFF) {
+        if (bom != 0xFFFE) return std::nullopt;
         m_Stream.swapBO = true;
     }
     if constexpr (std::endian::native == std::endian::little) {
-        header.magic = __builtin_bswap32(header.magic);
+        magic = __builtin_bswap32(magic);
     }
-    header.headerSize = m_Stream.readU16();
-    header.version = m_Stream.readU32();
-    if (header.version > 0x020400)
-        std::cout << "Warning: BFSAR version might not be supported. (0x" << std::hex << header.version << std::dec
+    uint16_t headerSize = m_Stream.readU16();
+    uint32_t version = m_Stream.readU32();
+    if (version != 0x020400 && version != 0x020200)
+        std::cout << "Warning: BFSAR version might not be supported. (0x" << std::hex << version << std::dec
                   << ')'
                   << std::endl;
-    header.fileSize = m_Stream.readU32();
-    header.sectionNum = m_Stream.readU16();
-    m_Stream.skip(2);
-    readHeaderSections(header);
-    return true;
+    uint32_t fileSize = m_Stream.readU32();
+
+    return readHeaderSections();
 }
 
-bool BfsarReader::readHeaderSections(BfsarHeader &header) {
+
+std::optional<BfsarReadContext> BfsarReader::readHeaderSections() {
+    uint16_t sectionNum = m_Stream.readU16();
+    m_Stream.skip(2);
+
     std::optional<SectionInfo> strgSection, infoSection, fileSection;
-    for (int i = 0; i < header.sectionNum; ++i) {
+    for (int i = 0; i < sectionNum; ++i) {
         switch (auto section = readSectionInfo(m_Stream); section.flag) {
             case 0x2000:
                 strgSection = section;
@@ -48,53 +50,33 @@ bool BfsarReader::readHeaderSections(BfsarHeader &header) {
                 break;
             default:
                 std::cerr << "Unsupported section with flag " << section.flag << std::endl;
-                return false;
+                return std::nullopt;
         }
     }
     m_Stream.seek(strgSection->offset);
-    readStrg();
+    auto stringTable = readStrg();
+    if (!stringTable) return std::nullopt;
     m_Stream.seek(infoSection->offset);
-    auto res = readInfo();
-    if (res.has_value()) {
-        m_Stream.seek(fileSection->offset);
-        readFile(res.value());
-    }
-    return true;
+    auto context = readInfo(stringTable.value());
+    m_Stream.seek(fileSection->offset);
+    m_FileOffset = readFile();
+
+    return context;
 }
 
-static std::vector<std::string> stringTable;
-
-struct SummaryObject {
-    std::string name;
-    uint32_t itemId;
-    int32_t soundInfoRefs = 0;
-    int32_t soundGroupIndex = -1;
-    int32_t bankIndex = -1;
-    int32_t waveArcIndex = -1;
-    int32_t groupIndex = -1;
-    int32_t fileIndex = -1;
-};
-
-static std::array<uint32_t, 8> numOfType{};
-static std::array<uint32_t, 8> numOfInfo{};
-
-bool BfsarReader::readStrg() {
-    stringTable.clear();
-    numOfType.fill(0);
-    numOfInfo.fill(0);
-    BfsarStringTable strg{};
-    strg.magic = m_Stream.readU32();
-    strg.sectionSize = m_Stream.readU32();
+std::optional<std::vector<std::string>> BfsarReader::readStrg() {
+    uint32_t magic = m_Stream.readU32();
+    uint32_t sectionSize = m_Stream.readU32();
     uint32_t strgOff = m_Stream.tell();
     if (m_Stream.readU16() != 0x2400) {
         std::cerr << "First entry in string section is not string table!" << std::endl;
-        return false;
+        return std::nullopt;
     }
     m_Stream.skip(2);
     int32_t strTblOff = m_Stream.readS32();
     if (m_Stream.readU16() != 0x2401) {
         std::cerr << "Second entry in string section is not lookup table!" << std::endl;
-        return false;
+        return std::nullopt;
     }
     m_Stream.skip(2);
     int32_t lutOff = m_Stream.readS32();
@@ -108,6 +90,7 @@ bool BfsarReader::readStrg() {
             stringEntries.emplace_back(entry.value());
         }
     }
+    std::vector<std::string> stringTable{};
     for (auto entry: stringEntries) {
         m_Stream.seek(strgOff + strTblOff + entry.offset);
         std::string entryName;
@@ -116,9 +99,9 @@ bool BfsarReader::readStrg() {
         }
         stringTable.emplace_back(entryName);
     }
-    m_Stream.seek(strgOff + lutOff);
-    readLut();
-    return true;
+    //m_Stream.seek(strgOff + lutOff);
+    //readLut();
+    return stringTable;
 }
 
 
@@ -172,9 +155,8 @@ void BfsarReader::printLutEntry(uint32_t baseOff, const std::string &prefix, boo
         // Player: BgmData.bfsar
         // Wave Archive:
         // Group: BgmData.bfsar
-        ++numOfType[type];
         std::cout << getTypeAsString(type);
-        std::cout << ": " << stringTable[strTblIdx] << " (str index: " << std::hex << strTblIdx << ", id: " << itemId
+        std::cout << " (str index: " << std::hex << strTblIdx << ", id: " << itemId
                   << ")" << std::endl;
     } else {
         std::cout << std::dec << (compareFunc >> 3) << "*" << (~compareFunc & 7) << std::endl;
@@ -193,16 +175,15 @@ bool BfsarReader::readLut() {
     uint32_t rootIndex = m_Stream.readU32();
     uint32_t entryCount = m_Stream.readU32();
     if (rootIndex == 0xffffffff) {
-        return true;
+        return false;
     }
     uint32_t lutStartOff = m_Stream.tell();
     m_Stream.skip(rootIndex * 0x5 * 0x4);
     printLutEntry(lutStartOff, "", false);
-    return false;
+    return true;
 }
 
-std::optional<std::vector<int32_t>> BfsarReader::readInfo() {
-    BfsarInfo info{};
+std::optional<BfsarReadContext> BfsarReader::readInfo(const std::vector<std::string> &stringTable) {
     uint32_t magic = m_Stream.readU32();
     uint32_t size = m_Stream.readU32();
     uint32_t infoOff = m_Stream.tell();
@@ -255,109 +236,65 @@ std::optional<std::vector<int32_t>> BfsarReader::readInfo() {
     m_Stream.skip(2);
     int32_t soundArcPlayerInfoOff = m_Stream.readS32();
 
-    std::cout << std::hex;
-
-    std::vector<uint32_t> infoRefs;
-
-    std::cout << "Entries: " << std::hex << stringTable.size() << std::endl;
-
-    //std::cout << "---Sound Info---" << std::endl;
-    m_Stream.seek(soundOff + infoOff);
-    infoRefs = readInfoRef(0x2200);
-    numOfInfo[1] = infoRefs.size();
-    for (auto entry: infoRefs) {
-        m_Stream.seek(soundOff + infoOff + entry);
-        SoundInfo soundInfo = readSoundInfo();
-    }
-
-    //std::cout << "---Sound Group Info---" << std::endl;
-    m_Stream.seek(soundGroupOff + infoOff);
-    infoRefs = readInfoRef(0x2204);
-    numOfInfo[2] = infoRefs.size();
-    for (int i = 0; i < infoRefs.size(); ++i) {
-        m_Stream.seek(soundGroupOff + infoOff + infoRefs[i]);
-        SoundGroupInfo soundGroupInfo = readSoundGroupInfo();
-        if (soundGroupInfo.startId == 0xffffffff) continue;
-        for (uint32_t j = soundGroupInfo.startId; j <= soundGroupInfo.endId; ++j) {
-        }
-    }
-
-    //std::cout << "---Bank Info---" << std::endl;
-    m_Stream.seek(bankOff + infoOff);
-    infoRefs = readInfoRef(0x2206);
-    numOfInfo[3] = infoRefs.size();
-    for (int i = 0; i < infoRefs.size(); ++i) {
-        m_Stream.seek(bankOff + infoOff + infoRefs[i]);
-        BankInfo bankInfo = readBankInfo();
-    }
-
-    //std::cout << "---Wave Archive Info---" << std::endl;
-    m_Stream.seek(waveArcOff + infoOff);
-    infoRefs = readInfoRef(0x2207);
-    numOfInfo[5] = infoRefs.size();
-    for (int i = 0; i < infoRefs.size(); ++i) {
-        m_Stream.seek(waveArcOff + infoOff + infoRefs[i]);
-        WaveArchiveInfo waveArchiveInfo = readWaveArchiveInfo();
-    }
-
-    //std::cout << "---Group Info---" << std::endl;
-    m_Stream.seek(groupInfoOff + infoOff);
-    infoRefs = readInfoRef(0x2208);
-    numOfInfo[6] = infoRefs.size();
-    for (auto entry: infoRefs) {
-        m_Stream.seek(groupInfoOff + infoOff + entry);
-        readGroupInfo();
-    }
-
-    //std::cout << "---Player Info---" << std::endl;
-    m_Stream.seek(playerInfoOff + infoOff);
-    infoRefs = readInfoRef(0x2209);
-    numOfInfo[4] = infoRefs.size();
-    for (auto entry: infoRefs) {
-        m_Stream.seek(playerInfoOff + infoOff + entry);
-        readPlayerInfo();
-    }
-
-    //std::cout << "---File Info---" << std::endl;
+    std::vector<BfsarFileInfo> fileData{};
     m_Stream.seek(fileInfoOff + infoOff);
-    std::vector<int32_t> fileOffsets{};
-    infoRefs = readInfoRef(0x220a);
-    std::cout << "File Info Count: " << infoRefs.size() << std::endl;
-    for (unsigned int infoRef : infoRefs) {
+    for (uint32_t infoRef: readInfoRef(0x220a)) {
         m_Stream.seek(fileInfoOff + infoOff + infoRef);
-        int32_t result = readFileInfo();
-        if (result != -1) {
-            fileOffsets.emplace_back(result);
-        }
+        auto result = readFileInfo();
+        if (!result) return std::nullopt;
+        fileData.emplace_back(result.value());
     }
 
-    //std::cout << "---Sound Archive Player Info---" << std::endl;
+    BfsarReadContext context{};
+
+    m_Stream.seek(soundOff + infoOff);
+    for (uint32_t infoRef: readInfoRef(0x2200)) {
+        m_Stream.seek(soundOff + infoOff + infoRef);
+        auto res = readSoundInfo(stringTable, fileData);
+        if (!res) return std::nullopt;
+        context.sounds.emplace_back(res.value());
+    }
+
+    m_Stream.seek(soundGroupOff + infoOff);
+    for (uint32_t infoRef: readInfoRef(0x2204)) {
+        m_Stream.seek(soundGroupOff + infoOff + infoRef);
+        context.soundGroups.emplace_back(readSoundGroupInfo(stringTable, fileData));
+    }
+
+    m_Stream.seek(bankOff + infoOff);
+    for (uint32_t infoRef: readInfoRef(0x2206)) {
+        m_Stream.seek(bankOff + infoOff + infoRef);
+        context.banks.emplace_back(readBankInfo(stringTable, fileData));
+    }
+
+    m_Stream.seek(waveArcOff + infoOff);
+    for (uint32_t infoRef: readInfoRef(0x2207)) {
+        m_Stream.seek(waveArcOff + infoOff + infoRef);
+        context.waveArchives.emplace_back(readWaveArchiveInfo(stringTable, fileData));
+    }
+
+    m_Stream.seek(groupInfoOff + infoOff);
+    for (uint32_t infoRef: readInfoRef(0x2208)) {
+        m_Stream.seek(groupInfoOff + infoOff + infoRef);
+        context.groups.emplace_back(readGroupInfo(stringTable, fileData));
+    }
+
+    m_Stream.seek(playerInfoOff + infoOff);
+    for (uint32_t infoRef: readInfoRef(0x2209)) {
+        m_Stream.seek(playerInfoOff + infoOff + infoRef);
+        context.players.emplace_back(readPlayerInfo(stringTable));
+    }
+
     m_Stream.seek(soundArcPlayerInfoOff + infoOff);
     readSoundArchivePlayerInfo();
 
-    for (int i = 1; i < numOfType.size()-1; ++i) {
-        if (i != 5 && numOfInfo[i] != numOfType[i]) {
-            abort();
-        }
-        std::cout << getTypeAsString(i) << ": " << numOfType[i] << " Info: " << numOfInfo[i] << std::endl;
-    }
-
-    return fileOffsets;
+    return context;
 }
 
-bool BfsarReader::readFile(const std::vector<int32_t> &fileOffsets) {
+uint32_t BfsarReader::readFile() {
     uint32_t magic = m_Stream.readU32();
     uint32_t size = m_Stream.readU32();
-    uint32_t start = m_Stream.tell();
-    for (auto off: fileOffsets) {
-        m_Stream.seek(start + off);
-        std::string str{};
-        for (int i = 0; i < 4; ++i) {
-            str += m_Stream.readS8();
-        }
-        //std::cout << str << std::endl;
-    }
-    return true;
+    return m_Stream.tell();
 }
 
 std::vector<uint32_t> BfsarReader::readInfoRef(uint16_t requiredType) {
@@ -376,148 +313,327 @@ std::vector<uint32_t> BfsarReader::readInfoRef(uint16_t requiredType) {
     return entryOffsets;
 }
 
-SoundInfo BfsarReader::readSoundInfo() {
-    SoundInfo soundInfo{};
-    soundInfo.fileId = m_Stream.readU32();
-    soundInfo.playerId = m_Stream.readU32();
-    soundInfo.volume = m_Stream.readU8();
-    soundInfo.remoteFilter = m_Stream.readU8();
+std::optional<BfsarSound>
+BfsarReader::readSoundInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData) {
+    BfsarSound sound{};
+    uint32_t startOff = m_Stream.tell();
+    sound.fileData = fileData[m_Stream.readU32()];
+    sound.playerId = m_Stream.readU32();
+    sound.initialVolume = m_Stream.readU8();
+    sound.remoteFilter = m_Stream.readU8();
     m_Stream.skip(2);
-    soundInfo.soundType = m_Stream.readU16();
+    uint32_t soundType = m_Stream.readU16();
+    m_Stream.skip(2);
+    uint32_t infoOffset = m_Stream.readU32();
 
-    if (true) {
-        std::cout << std::hex << "File Id: " << soundInfo.fileId;
-        std::cout << " Player Id: " << soundInfo.playerId;
-        std::cout << " Volume: " << static_cast<uint32_t>(soundInfo.volume);
-        std::cout << " Remote Filter: " << static_cast<uint32_t>(soundInfo.remoteFilter);
-        std::cout << " Sound type: " << soundInfo.soundType;
+    uint32_t flags = m_Stream.readU32();
+    if (hasFlag(flags, 0)) {
+        sound.name = stringTable[m_Stream.readU32()];
+    }
+    if (hasFlag(flags, 1)) {
+        BfsarPan pan{};
+        pan.mode = m_Stream.readU8();
+        pan.curve = m_Stream.readU8();
         m_Stream.skip(2);
-        std::cout << " Info Offset: " << m_Stream.readU32();
-        std::cout << " Flags: " << m_Stream.readU32() << std::endl;
+        sound.panInfo = pan;
     }
-
-    return soundInfo;
-}
-
-SoundGroupInfo BfsarReader::readSoundGroupInfo() {
-    SoundGroupInfo groupInfo{};
-    groupInfo.startId = m_Stream.readU32();
-    groupInfo.endId = m_Stream.readU32();
-    if (true) {
-        std::cout << std::hex << "Start Id: " << groupInfo.startId;
-        std::cout << " End Id: " << groupInfo.endId;
-        std::cout << " Unk: " << m_Stream.readU32();
-        std::cout << " Unk Off: " << m_Stream.readU32();
-        std::cout << " Flag: " << m_Stream.readU16();
+    if (hasFlag(flags, 2)) {
+        BfsarActorPlayer actorPlayer{};
+        actorPlayer.playerPriority = m_Stream.readU8();
+        actorPlayer.actorPlayerId = m_Stream.readU8();
         m_Stream.skip(2);
-        std::cout << " Off: " << m_Stream.readS32() << std::endl;
+        sound.actorPlayerInfo = actorPlayer;
     }
-    return groupInfo;
-}
-
-BankInfo BfsarReader::readBankInfo() {
-    BankInfo bankInfo{};
-    bankInfo.fileId = m_Stream.readU32();
-    if (false) {
-        std::cout << "File Id: " << bankInfo.fileId;
-        std::cout << " Unk: " << m_Stream.readU32();
-        std::cout << " WaveArcIdTableOff: " << m_Stream.readS32() << std::endl;
+    if (hasFlag(flags, 3)) {
+        BfsarSinglePlay singlePlay{};
+        singlePlay.type = m_Stream.readU16();
+        singlePlay.effectiveDuration = m_Stream.readU16();
+        sound.singlePlayInfo = singlePlay;
     }
-
-    return bankInfo;
-}
-
-WaveArchiveInfo BfsarReader::readWaveArchiveInfo() {
-    WaveArchiveInfo waveArchiveInfo{};
-    waveArchiveInfo.fileId = m_Stream.readU32();
-    waveArchiveInfo.fileNum = m_Stream.readU32();
-    if (true) {
-        std::cout << "File Id: " << waveArchiveInfo.fileId;
-        std::cout << " File Num: " << waveArchiveInfo.fileNum;
-        std::cout << " Flags: " << m_Stream.readU32() << std::endl;
+    uint32_t sum = 0;
+    for (int i = 4; i < 8; ++i) {
+        if (hasFlag(flags, i)) sum += 4;
+    }
+    m_Stream.skip(sum);
+    if (hasFlag(flags, 8)) {
+        sound.sound3DInfo = readSound3DInfo(startOff);
+    }
+    sum = 0;
+    for (int i = 9; i < 17; ++i) {
+        if (hasFlag(flags, i)) sum += 4;
+    }
+    m_Stream.skip(sum);
+    if (hasFlag(flags, 17)) {
+        sound.isFrontBypass = m_Stream.readU32();
     }
 
-    return waveArchiveInfo;
-}
+    m_Stream.seek(infoOffset + startOff);
 
-bool BfsarReader::readGroupInfo() {
-    if (true) {
-        // If -1 then external
-        std::cout << "File Info Entry: " << m_Stream.readU32() << std::endl;
+    switch (soundType) {
+        case 0x2201: {
+            auto strRet = readStreamSoundInfo();
+            if (!strRet) return std::nullopt;
+            sound.subInfo = strRet.value();
+            break;
+        }
+        case 0x2202: {
+            sound.subInfo = readWaveSoundInfo();
+            break;
+        }
+        case 0x2203: {
+            sound.subInfo = readSequenceSoundInfo();
+            break;
+        }
+        default:
+            std::cerr << "Unknown sound type " << std::hex << soundType << std::endl;
+            return std::nullopt;
     }
-    return false;
+
+    return sound;
 }
 
-bool BfsarReader::readPlayerInfo() {
-    if (false) {
-        std::cout << "Playable Sound Num: " << m_Stream.readU32();
-        std::cout << " Flags: " << m_Stream.readU32() << std::endl;
-    }
-    return false;
-}
-
-int32_t BfsarReader::readFileInfo() {
-    FileInfo fileInfo{};
+std::optional<BfsarStreamSound> BfsarReader::readStreamSoundInfo() {
+    // TODO check with bfstm/bfstp reader
+    BfsarStreamSound streamSound{};
     uint32_t start = m_Stream.tell();
-    fileInfo.locType = m_Stream.readU16();
+    streamSound.validTracks = m_Stream.readU16();
+    streamSound.channelCount = m_Stream.readU16();
+    uint16_t titFlag = m_Stream.readU16();
+    m_Stream.skip(2);
+    int32_t titOff = m_Stream.readS32();
+    auto unkFloat = std::bit_cast<float>(m_Stream.readU32());
+    uint16_t svFlag = m_Stream.readU16();
+    m_Stream.skip(2);
+    int32_t svOff = m_Stream.readS32();
+    uint16_t sseFlag = m_Stream.readU16();
+    m_Stream.skip(2);
+    int32_t sseOff = m_Stream.readS32();
+    streamSound.unk = m_Stream.readU32();
+
+    m_Stream.seek(start + titOff);
+    uint32_t titEntryNum = m_Stream.readU32();
+    std::vector<int32_t> tiOffsets{};
+    for (int i = 0; i < titEntryNum; ++i) {
+        ReferenceEntry entry = readReferenceEntry(m_Stream);
+        if (entry.flag != 0x220e) {
+            std::cerr << "Track Info Table reference flag invalid! " << entry.flag << std::endl;
+            return std::nullopt;
+        }
+        tiOffsets.emplace_back(entry.offset);
+    }
+    for (int32_t tiOffset : tiOffsets) {
+        m_Stream.seek(start + titOff + tiOffset);
+        uint32_t f1 = m_Stream.readU8();
+        uint32_t f2 = m_Stream.readU8();
+        uint32_t f3 = m_Stream.readU8();
+        uint32_t f4 = m_Stream.readU8();
+        uint16_t tciFlag = m_Stream.readU16();
+        m_Stream.skip(2);
+        uint32_t tciOff = m_Stream.readS32();
+        uint16_t svcFlag = m_Stream.readU16();
+        m_Stream.skip(2);
+        uint32_t svcOff = m_Stream.readS32();
+
+        m_Stream.seek(start + titOff + tiOffset + tciOff);
+        uint32_t ciEntryNum = m_Stream.readU32();
+        uint32_t c0 = m_Stream.readU8();
+        // c1 is 0 when channelCount == ciEntryNum == 1
+        uint32_t c1 = m_Stream.readU8();
+    }
+
+    return streamSound;
+}
+
+BfsarWaveSound BfsarReader::readWaveSoundInfo() {
+    BfsarWaveSound waveSound{};
+    waveSound.archiveId = m_Stream.readU32();
+    uint32_t unk1 = m_Stream.readU32();
+    uint32_t flags = m_Stream.readU32();
+    if (hasFlag(flags, 0)) {
+        BfsarPrioInfo prioInfo{};
+        prioInfo.channelPrio = m_Stream.readU8();
+        prioInfo.isReleasePrioFix = m_Stream.readU8();
+        waveSound.prioInfo = prioInfo;
+    }
+    return waveSound;
+}
+
+BfsarSequenceSound BfsarReader::readSequenceSoundInfo() {
+    BfsarSequenceSound sequenceSound{};
+    uint32_t start = m_Stream.tell();
+    uint32_t biFlag = m_Stream.readU16();
+    m_Stream.skip(2);
+    uint32_t bankIdOff = m_Stream.readU32();
+    sequenceSound.validTracks = m_Stream.readU32();
+    uint32_t flags = m_Stream.readU32();
+    if (hasFlag(flags, 0)) {
+        sequenceSound.startOffset = m_Stream.readU32();
+    }
+    if (hasFlag(flags, 1)) {
+        BfsarPrioInfo prioInfo{};
+        prioInfo.channelPrio = m_Stream.readU8();
+        prioInfo.isReleasePrioFix = m_Stream.readU8();
+        m_Stream.skip(2);
+        sequenceSound.prioInfo = prioInfo;
+    }
+
+    m_Stream.seek(start + bankIdOff);
+    sequenceSound.bankIds = readBankIdTable();
+    return sequenceSound;
+}
+
+BfsarSound3D BfsarReader::readSound3DInfo(uint32_t startOff) {
+    int32_t sound3dOff = m_Stream.readS32();
+    uint32_t mem = m_Stream.tell();
+    m_Stream.seek(startOff + sound3dOff);
+    BfsarSound3D sound3D{};
+    sound3D.flags = m_Stream.readU32();
+    sound3D.unkFloat = std::bit_cast<float>(m_Stream.readU32());
+    sound3D.unkBool0 = m_Stream.readU8();
+    sound3D.unkBool1 = m_Stream.readU8();
+
+    m_Stream.seek(mem);
+    return sound3D;
+}
+
+BfsarSoundGroup BfsarReader::readSoundGroupInfo(const std::vector<std::string> &stringTable,
+                                                const std::vector<BfsarFileInfo> &fileData) {
+    BfsarSoundGroup group{};
+    uint32_t startOff = m_Stream.tell();
+    group.startId = m_Stream.readU32();
+    group.endId = m_Stream.readU32();
+    uint16_t ftFlag = m_Stream.readU16();
+    m_Stream.skip(2);
+    uint32_t ftOff = m_Stream.readU32();
+    uint16_t warTFlag = m_Stream.readU16();
+    m_Stream.skip(2);
+    uint32_t warTOff = m_Stream.readU32();
+    uint32_t flags = m_Stream.readU32();
+    if (hasFlag(flags, 0)) {
+        group.name = stringTable[m_Stream.readU32()];
+    }
+    return group;
+}
+
+BfsarBank
+BfsarReader::readBankInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData) {
+    BfsarBank bank{};
+    uint32_t startOff = m_Stream.tell();
+    bank.fileData = fileData[m_Stream.readU32()];
+    uint32_t waFlag = m_Stream.readU16();
+    m_Stream.skip(2);
+    uint32_t waOff = m_Stream.readU32();
+    uint32_t flags = m_Stream.readU32();
+    if (hasFlag(flags, 0)) {
+        bank.name = stringTable[m_Stream.readU32()];
+    }
+
+    return bank;
+}
+
+BfsarWaveArchive BfsarReader::readWaveArchiveInfo(const std::vector<std::string> &stringTable,
+                                                  const std::vector<BfsarFileInfo> &fileData) {
+    BfsarWaveArchive waveArchive{};
+    waveArchive.fileData = fileData[m_Stream.readU32()];
+    // TODO check with bfwar reader
+    uint32_t fileNum = m_Stream.readU32();
+
+    uint32_t flags = m_Stream.readU32();
+
+    if (hasFlag(flags, 0)) {
+        waveArchive.name = stringTable[m_Stream.readU32()];
+    }
+    if (hasFlag(flags, 1)) {
+        waveArchive.waveCount = m_Stream.readU32();
+    }
+
+    return waveArchive;
+}
+
+BfsarGroup
+BfsarReader::readGroupInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData) {
+    BfsarGroup group{};
+    uint32_t fileEntry = m_Stream.readU32();
+    if (fileEntry != -1) {
+        group.fileData = fileData[fileEntry];
+    }
+    uint32_t flags = m_Stream.readU32();
+    if (hasFlag(flags, 0)) {
+        group.name = stringTable[m_Stream.readU32()];
+    }
+    return group;
+}
+
+BfsarPlayer BfsarReader::readPlayerInfo(const std::vector<std::string> &stringTable) {
+    BfsarPlayer player{};
+    player.playableSoundLimit = m_Stream.readU32();
+    uint32_t flags = m_Stream.readU32();
+    if (hasFlag(flags, 0)) {
+        player.name = stringTable[m_Stream.readU32()];
+    }
+    if (hasFlag(flags, 1)) {
+        player.playerHeapSize = m_Stream.readU32();
+    }
+    return player;
+}
+
+std::optional<BfsarFileInfo> BfsarReader::readFileInfo() {
+    BfsarFileInfo fileInfo{};
+    uint32_t start = m_Stream.tell();
+    uint16_t locType = m_Stream.readU16();
     m_Stream.skip(2);
     // Always 0xc?
-    fileInfo.offset = m_Stream.readS32();
-    m_Stream.seek(start + fileInfo.offset);
-    if (false) {
-        std::cout << "Location Type: " << fileInfo.locType;
-        std::cout << " Offset: " << fileInfo.offset;
-    }
+    int32_t offset = m_Stream.readS32();
+    m_Stream.seek(start + offset);
 
-    if (fileInfo.locType == 0x220d) {
+    if (locType == 0x220d) {
         std::string str{};
         char chr = m_Stream.readS8();
         while (chr != 0) {
             str += chr;
             chr = m_Stream.readS8();
         }
-        if (false) {
-            std::cout << "--External File Info--" << std::endl;
-            std::cout << str << std::endl;
-        }
-    } else if (fileInfo.locType == 0x220c) {
+        fileInfo.info = BfsarExternalFile{str};
+    } else if (locType == 0x220c) {
         uint16_t flag = m_Stream.readU16();
         m_Stream.skip(2);
         int32_t fileOff = m_Stream.readS32();
-        if (fileOff == -1) {
-            // Internal but inside a fgrp (the fgrp might be external though)
-        }
-        uint32_t unk1 = m_Stream.readU32();
-        uint32_t unk2 = m_Stream.readU32();
+        uint32_t fileSize = m_Stream.readU32();
+        uint32_t gtFlag = m_Stream.readU16();
+        m_Stream.skip(2);
         int32_t groupTableOff = m_Stream.readS32();
 
-        if (false) {
-            std::cout << "--Internal File Info--" << std::endl;
-            std::cout << " Flag: " << flag;
-            std::cout << " File Offset: " << fileOff;
-            std::cout << " Unk: " << unk1;
-            std::cout << " Unk: " << unk2;
-            std::cout << " Group Table Offset: " << groupTableOff << std::endl;
-        }
-        return fileOff;
+        fileInfo.info = BfsarInternalFile{fileOff, fileSize};
     } else {
-        std::cerr << "Location type unknown! " << fileInfo.locType << std::endl;
+        std::cerr << "Location type unknown! " << locType << std::endl;
+        return std::nullopt;
     }
-    return -1;
+    return fileInfo;
 }
 
-bool BfsarReader::readSoundArchivePlayerInfo() {
-    if (false) {
-        std::cout << "Sequence Num: " << m_Stream.readU16();
-        std::cout << " Sequence Track Num: " << m_Stream.readU16();
-        std::cout << " Stream Num: " << m_Stream.readU16();
-        std::cout << " Unk: " << m_Stream.readU16();
-        std::cout << " Unk: " << m_Stream.readU16();
-        std::cout << " Wave Num: " << m_Stream.readU16();
-        std::cout << " Unk: " << m_Stream.readU16();
-        std::cout << " Stream Buffer Times: " << static_cast<uint32_t>(m_Stream.readU8());
-        std::cout << " Is Advanced Wave: " << static_cast<uint32_t>(m_Stream.readU8()) << std::endl;
-    }
+BfsarSoundArchivePlayer BfsarReader::readSoundArchivePlayerInfo() {
+    BfsarSoundArchivePlayer archivePlayer{};
+    archivePlayer.sequenceLimit = m_Stream.readU16();
+    archivePlayer.sequenceTrackLimit = m_Stream.readU16();
+    archivePlayer.streamLimit = m_Stream.readU16();
+    archivePlayer.unkLimit = m_Stream.readU16();
+    archivePlayer.streamChannelLimit = m_Stream.readU16();
+    archivePlayer.waveLimit = m_Stream.readU16();
+    archivePlayer.unkWaveLimit = m_Stream.readU16();
 
-    return false;
+    return archivePlayer;
+}
+
+std::vector<uint32_t> BfsarReader::readBankIdTable() {
+    uint32_t bankNum = m_Stream.readU32();
+    std::vector<uint32_t> bankIds{};
+    bankIds.reserve(bankNum);
+    for (int i = 0; i < bankNum; ++i) {
+        bankIds.emplace_back(m_Stream.readU32());
+    }
+    return bankIds;
+}
+
+bool BfsarReader::hasFlag(uint32_t flags, uint8_t index) {
+    return (flags >> index) & 1;
 }

@@ -10,43 +10,65 @@
 
 class BfsarReader {
 public:
-    BfsarReader(const MemoryResource& resource);
+    explicit BfsarReader(const MemoryResource &resource);
 
-    bool readSar();
+    bool wasReadSuccess() {
+        return m_Context.has_value();
+    }
 
-    bool readHeader();
+    BfsarReadContext getContext() {
+        return m_Context.value();
+    }
+private:
+    std::optional<BfsarReadContext> readHeader();
 
-    bool readHeaderSections(BfsarHeader& header);
+    std::optional<BfsarReadContext> readHeaderSections();
 
-    bool readStrg();
+    std::optional<std::vector<std::string>> readStrg();
 
     bool readLut();
 
-    void printLutEntry(uint32_t baseOff, const std::string& prefix, bool isLeft);
+    void printLutEntry(uint32_t baseOff, const std::string &prefix, bool isLeft);
 
-    std::optional<std::vector<int32_t>> readInfo();
+    std::optional<BfsarReadContext> readInfo(const std::vector<std::string> &stringTable);
 
-    SoundInfo readSoundInfo();
+    std::optional<BfsarSound> readSoundInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
 
-    SoundGroupInfo readSoundGroupInfo();
+    std::optional<BfsarStreamSound> readStreamSoundInfo();
 
-    BankInfo readBankInfo();
+    BfsarWaveSound readWaveSoundInfo();
 
-    WaveArchiveInfo readWaveArchiveInfo();
+    BfsarSequenceSound readSequenceSoundInfo();
 
-    bool readGroupInfo();
+    BfsarSound3D readSound3DInfo(uint32_t startOff);
 
-    bool readPlayerInfo();
+    BfsarSoundGroup
+    readSoundGroupInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
 
-    int32_t readFileInfo();
+    BfsarBank readBankInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
 
-    bool readSoundArchivePlayerInfo();
+    BfsarWaveArchive readWaveArchiveInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
+
+    std::vector<uint32_t> readBankIdTable();
+
+    BfsarGroup readGroupInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
+
+    BfsarPlayer readPlayerInfo(const std::vector<std::string> &stringTable);
+
+    std::optional<BfsarFileInfo> readFileInfo();
+
+    BfsarSoundArchivePlayer readSoundArchivePlayerInfo();
 
     std::vector<uint32_t> readInfoRef(uint16_t requiredType);
 
-    bool readFile(const std::vector<int32_t> &fileOffsets);
+    uint32_t readFile();
 
     std::optional<BfsarStringEntry> readStrTbl();
+
+    static bool hasFlag(uint32_t flags, uint8_t index);
+
 private:
     InMemoryStream m_Stream;
+    std::optional<BfsarReadContext> m_Context;
+    uint32_t m_FileOffset = 0;
 };

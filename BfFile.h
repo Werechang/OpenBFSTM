@@ -17,11 +17,6 @@ struct ReferenceEntry {
     int32_t offset;
 };
 
-struct ReferenceTable {
-    uint32_t refCount;
-    ReferenceEntry entries[];
-};
-
 ReferenceEntry readReferenceEntry(InMemoryStream &stream);
 
 SectionInfo readSectionInfo(InMemoryStream &stream);

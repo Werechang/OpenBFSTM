@@ -9,6 +9,8 @@
 #include "Window.h"
 #include "format/bfsar/BfsarReader.h"
 #include "format/bfstm/BfstmReader.h"
+#include "format/bfgrp/BfgrpReader.h"
+#include "format/bfgrp/BfgrpWriter.h"
 
 snd_pcm_format_t getFormat(const SoundEncoding encoding) {
     switch (encoding) {
@@ -65,7 +67,7 @@ void iterateAll() {
 
 void testOne() {
     std::ifstream in{
-            "/home/cookieso/Musik/bfsar/BgmData.bfsar",
+            "/home/cookieso/Musik/bfsar/SeData.bfsar",
             std::ios::binary
     };
     if (!in) {
@@ -74,6 +76,12 @@ void testOne() {
         std::cout << "Reading... " << std::endl;
         MemoryResource resource{in};
         BfsarReader reader(resource);
+
+        if (reader.wasReadSuccess()) {
+            for (auto &bank : reader.getContext().banks) {
+                //std::cout << bank.name << ": " << bank.fileData.info.index() << std::endl;
+            }
+        }
     }
     exit(0);
 }
@@ -83,13 +91,8 @@ int main(int argc, char **argv) {
         std::cout << "Please specify a file to play." << std::endl;
         return 0;
     }
-    // MemoryResource outMem(0x400);
-    // OutMemoryStream outBfstm{outMem};
-    // BfstmWriteInfo outInfo{SoundEncoding::DSP_ADPCM, 2, true, 48000, 0, 1000};
-    // writeBfstm(outBfstm, outInfo);
-    // outMem.writeToFile("Exported.bfstm");
 
-    //iterateAll();
+    iterateAll();
     testOne();
 
     std::ifstream in{
