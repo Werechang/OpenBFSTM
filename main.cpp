@@ -11,6 +11,8 @@
 #include "format/bfstm/BfstmReader.h"
 #include "format/bfgrp/BfgrpReader.h"
 #include "format/bfgrp/BfgrpWriter.h"
+#include "format/bfwar/BfwarReader.h"
+#include "format/bfwar/BfwarWriter.h"
 
 snd_pcm_format_t getFormat(const SoundEncoding encoding) {
     switch (encoding) {
@@ -41,7 +43,7 @@ void parseOption(char option, char *value) {
 
 void iterateAll() {
     const std::filesystem::path path{
-            "/home/cookieso/Musik/bfsar/"};
+            "/home/cookieso/Musik/bfwar/"};
     std::unordered_map<uint32_t, int32_t> used{};
     for (auto const &dir_entry: std::filesystem::directory_iterator{path}) {
         if (dir_entry.is_regular_file()) {
@@ -55,7 +57,8 @@ void iterateAll() {
             }
             std::cout << "Reading " << dir_entry.path() << std::endl;
             MemoryResource resource{in};
-            BfsarReader reader(resource);
+            BfwarReader reader(resource);
+
         }
     }
     for (const auto &i: used) {
@@ -67,7 +70,7 @@ void iterateAll() {
 
 void testOne() {
     std::ifstream in{
-            "/home/cookieso/Musik/bfsar/SeData.bfsar",
+            "/home/cookieso/Musik/bfwar/AtmosLava0.bfwar",
             std::ios::binary
     };
     if (!in) {
@@ -75,12 +78,16 @@ void testOne() {
     } else {
         std::cout << "Reading... " << std::endl;
         MemoryResource resource{in};
-        BfsarReader reader(resource);
-
+        BfwarReader reader(resource);
         if (reader.wasReadSuccess()) {
-            for (auto &bank : reader.getContext().banks) {
-                //std::cout << bank.name << ": " << bank.fileData.info.index() << std::endl;
+            BfwarWriteContext writeContext{};
+            for (const auto &fileData : reader.getContext().fileData) {
+                std::cout << "Writing..." << std::endl;
+                writeContext.files.emplace_back(reader.getFileData(fileData.offset, fileData.size));
             }
+            MemoryResource outSource{};
+            BfwarWriter writer{outSource, writeContext};
+            outSource.writeToFile("/home/cookieso/Musik/Exported.bfwar");
         }
     }
     exit(0);
@@ -92,7 +99,7 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    iterateAll();
+    //iterateAll();
     testOne();
 
     std::ifstream in{

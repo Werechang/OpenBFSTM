@@ -286,7 +286,7 @@ std::optional<BfsarReadContext> BfsarReader::readInfo(const std::vector<std::str
     }
 
     m_Stream.seek(soundArcPlayerInfoOff + infoOff);
-    readSoundArchivePlayerInfo();
+    context.sarPlayer = readSoundArchivePlayerInfo();
 
     return context;
 }
@@ -505,13 +505,21 @@ BfsarSoundGroup BfsarReader::readSoundGroupInfo(const std::vector<std::string> &
     uint16_t ftFlag = m_Stream.readU16();
     m_Stream.skip(2);
     uint32_t ftOff = m_Stream.readU32();
-    uint16_t warTFlag = m_Stream.readU16();
+    uint16_t warTRFlag = m_Stream.readU16();
     m_Stream.skip(2);
-    uint32_t warTOff = m_Stream.readU32();
+    uint32_t warTROff = m_Stream.readU32();
     uint32_t flags = m_Stream.readU32();
     if (hasFlag(flags, 0)) {
         group.name = stringTable[m_Stream.readU32()];
     }
+
+    if (warTRFlag == 0x2205) {
+        m_Stream.seek(startOff + warTROff);
+        uint16_t warTFlag = m_Stream.readU16();
+        m_Stream.skip(2);
+        m_Stream.seek(startOff + warTROff + m_Stream.readS32());
+    }
+
     return group;
 }
 
@@ -602,6 +610,9 @@ std::optional<BfsarFileInfo> BfsarReader::readFileInfo() {
         uint32_t gtFlag = m_Stream.readU16();
         m_Stream.skip(2);
         int32_t groupTableOff = m_Stream.readS32();
+        m_Stream.seek(start + offset + groupTableOff);
+        // TODO
+        uint32_t entryNum = m_Stream.readU32();
 
         fileInfo.info = BfsarInternalFile{fileOff, fileSize};
     } else {
@@ -636,4 +647,9 @@ std::vector<uint32_t> BfsarReader::readBankIdTable() {
 
 bool BfsarReader::hasFlag(uint32_t flags, uint8_t index) {
     return (flags >> index) & 1;
+}
+
+std::span<const uint8_t> BfsarReader::getFileData(uint32_t offset, uint32_t size) {
+    if (!m_Context) return {};
+    return m_Stream.getSpanAt(offset + m_FileOffset, size);
 }

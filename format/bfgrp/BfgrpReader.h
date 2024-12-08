@@ -30,7 +30,7 @@ private:
 
     std::optional<std::vector<BfgrpFileEntry>> readInfo();
 
-    uint32_t readFile(const std::vector<BfgrpFileEntry>& entries);
+    uint32_t readFile();
 
     std::optional<BfgrpFileEntry> readFileLocationInfo();
 

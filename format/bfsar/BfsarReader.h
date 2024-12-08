@@ -19,6 +19,8 @@ public:
     BfsarReadContext getContext() {
         return m_Context.value();
     }
+
+    std::span<const uint8_t> getFileData(uint32_t offset, uint32_t size);
 private:
     std::optional<BfsarReadContext> readHeader();
 

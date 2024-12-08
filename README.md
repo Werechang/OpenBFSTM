@@ -7,9 +7,10 @@ different kinds of audio files used in Super Mario Odyssey.
 |-------|--------|--------|---------------|----------------------------------------------------------------------------------------|
 | BFSTM | ✅      | ⬜      | 6.1.0         | Encoding is not 100% correct since the calculated dspadpcm coefficients are different. |
 | BFGRP | ✅      | ✅      | 1.0.0         |                                                                                        |
-| BFSAR | ✅      | ⬜      | 2.4.0, 2.2.0  |                                                                                        |
+| BFSAR | ✅      | ⬜      | 2.4.0, 2.2.0  | There are still some unknown variables + missing things.                               |
 | BFSTP | ⬜      | ⬜      |               |                                                                                        |
-| BFWAR | ⬜      | ⬜      |               |                                                                                        |
+| BFWAR | ✅      | ✅      | 1.0.0         | Encoding: Small differences in alignment algorithm                                     |
+| BFWAV | ⬜      | ⬜      |               |                                                                                        |
 | BFWSD | ⬜      | ⬜      |               |                                                                                        |
 | BFBNK | ⬜      | ⬜      |               |                                                                                        |
 | BFSEQ | ⬜      | ⬜      |               |                                                                                        |

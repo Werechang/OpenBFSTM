@@ -60,7 +60,7 @@ std::optional<BfgrpReadContext> BfgrpReader::readHeaderSections() {
 
     if (!fileEntries || !depInfo) return std::nullopt;
     m_Stream.seek(fileSection->offset);
-    m_FileOffset = readFile(fileEntries.value());
+    m_FileOffset = readFile();
     if (m_FileOffset == 0) return std::nullopt;
     return BfgrpReadContext{fileEntries.value(), depInfo.value()};
 }
@@ -134,7 +134,7 @@ std::optional<std::vector<BfgrpDepEntry>> BfgrpReader::readGroupItemExtraInfo() 
     return depInfo;
 }
 
-uint32_t BfgrpReader::readFile(const std::vector<BfgrpFileEntry> &entries) {
+uint32_t BfgrpReader::readFile() {
     uint32_t magic = m_Stream.readU32();
     if (magic != 0x454c4946) {
         std::cerr << "FILE magic in FGRP file does not match!" << std::endl;
@@ -142,15 +142,7 @@ uint32_t BfgrpReader::readFile(const std::vector<BfgrpFileEntry> &entries) {
     }
 
     uint32_t size = m_Stream.readU32();
-    uint32_t start = m_Stream.tell();
-    for (const auto &item: entries) {
-        m_Stream.seek(start + item.offset);
-        std::string str{};
-        for (int i = 0; i < 4; ++i) {
-            str += m_Stream.readS8();
-        }
-    }
-    return start;
+    return m_Stream.tell();
 }
 
 std::span<const uint8_t> BfgrpReader::getFileData(uint32_t offset, uint32_t size) {

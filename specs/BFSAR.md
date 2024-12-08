@@ -291,6 +291,9 @@ This is why the number of valid tracks correlates with the channel count.
 | 0x18   | u32  | flags                   | 0: string id                                |
 | 0x1c   | ...  | data                    | specified by flags                          |
 
+When the table reference is set, it points to another reference which points to a wave archive table.
+For some reason the table always has 0 entries.
+
 ##### File Table
 
 | Offset | Type | Name      | Description  |

@@ -41,7 +41,12 @@ add_executable(OpenBFSTM main.cpp
         format/bfgrp/BfgrpWriter.cpp
         format/bfgrp/BfgrpWriter.h
         format/bfstp/BfstpReader.cpp
-        format/bfstp/BfstpReader.h)
+        format/bfstp/BfstpReader.h
+        format/bfwar/BfwarReader.cpp
+        format/bfwar/BfwarReader.h
+        format/bfwar/BfwarStructs.h
+        format/bfwar/BfwarWriter.cpp
+        format/bfwar/BfwarWriter.h)
 
 
 target_link_libraries(OpenBFSTM PRIVATE ALSA::ALSA glfw OpenGL imgui::imgui)
