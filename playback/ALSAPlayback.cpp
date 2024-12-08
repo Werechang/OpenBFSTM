@@ -1,6 +1,7 @@
 //
 // Created by cookieso on 29.07.24.
 //
+#if __has_include(<alsa/asoundlib.h>)
 
 #include <iostream>
 #include "ALSAPlayback.h"
@@ -109,3 +110,5 @@ void ALSAPlayback::seek(const BfstmContext &context, const void *histPtr, uint32
     AudioPlayback::seek(context, histPtr, block);
     snd_pcm_prepare(m_PlaybackHandle);
 }
+
+#endif

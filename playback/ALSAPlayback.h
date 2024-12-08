@@ -2,6 +2,8 @@
 // Created by cookieso on 29.07.24.
 //
 
+#if __has_include(<alsa/asoundlib.h>)
+
 #pragma once
 
 #include "AudioPlayback.h"
@@ -40,3 +42,5 @@ private:
     snd_pcm_t *m_PlaybackHandle{};
     int err;
 };
+
+#endif

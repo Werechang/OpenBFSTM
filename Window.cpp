@@ -13,6 +13,10 @@ void glfwErrorCallback(int error, const char *desc) {
     std::cerr << "Glfw error: " << desc << std::endl;
 }
 
+void dropCallback(GLFWwindow *window, int count, const char *paths[]) {
+
+}
+
 Window::Window() {
     glfwSetErrorCallback(glfwErrorCallback);
 
@@ -25,6 +29,7 @@ Window::Window() {
     if (!m_Window) throw std::runtime_error("Cannot create glfw window!");
 
     glfwMakeContextCurrent(m_Window);
+    glfwSetDropCallback(m_Window, dropCallback);
     glfwSwapInterval(1);
 
     IMGUI_CHECKVERSION();
