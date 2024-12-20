@@ -67,18 +67,12 @@ void Window::preDraw() {
     ImGui::NewFrame();
 }
 
-void Window::draw(AudioPlayback& audio, BfstmContext& context) {
+void Window::draw(AudioPlayback& audio) {
     {
         static float f = 0.0f;
         static int counter = 0;
 
         ImGui::Begin("Hello, world!");
-
-        uint32_t sampleCount = (context.streamInfo.blockSizeSamples * (context.streamInfo.blockCountPerChannel - 1) +
-                           context.streamInfo.lastBlockSizeSamples);
-        ImGui::Text("Length %is",  sampleCount / context.streamInfo.sampleRate);
-        ImGui::Text("Loop start sample %i", context.streamInfo.loopStart);
-        ImGui::Text("Loop end sample %i", context.streamInfo.loopEnd);
 
         if (ImPlot::BeginPlot("##SampleDiagram")) {
             //ImPlot::PlotLine("##Samples", nullptr, nullptr, sampleCount);
@@ -87,20 +81,6 @@ void Window::draw(AudioPlayback& audio, BfstmContext& context) {
 
         if (ImGui::Button("Pause")) {
             audio.pause(!audio.isPaused());
-        }
-        if (context.streamInfo.channelNum > 2) {
-            ImGui::Text("Channels Groups: ");
-            for (int i = 0; i < context.streamInfo.channelNum; i += 2) {
-                ImGui::SameLine();
-                if (ImGui::Button(std::format("Channel Group {}", i/2).c_str())) {
-                    audio.setChannel(i);
-                }
-            }
-        }
-        if (!context.regionInfos.empty()) {
-            if (ImGui::Button("Increment region")) {
-                audio.incRegion();
-            }
         }
         ImGui::End();
     }

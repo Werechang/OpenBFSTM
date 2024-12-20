@@ -7,8 +7,11 @@
 #include <cstdint>
 
 struct BfsarInternalFile {
-    int32_t offset;
-    uint32_t size;
+    std::span<const uint8_t> data;
+};
+
+struct BfsarInternalNullFile {
+
 };
 
 struct BfsarExternalFile {
@@ -16,15 +19,32 @@ struct BfsarExternalFile {
 };
 
 struct BfsarFileInfo {
-    std::variant<BfsarInternalFile, BfsarExternalFile> info;
+    std::variant<BfsarInternalFile, BfsarInternalNullFile, BfsarExternalFile> info;
 
     bool isExternal() const {
-        return info.index() == 1;
+        return std::holds_alternative<BfsarExternalFile>(info);
+    }
+
+    const BfsarExternalFile& getExternal() const {
+        return get<BfsarExternalFile>(info);
     }
 
     bool isInternal() const {
-        return info.index() == 0;
+        return std::holds_alternative<BfsarInternalFile>(info);
     }
+
+    const BfsarInternalFile& getInternal() const {
+        return get<BfsarInternalFile>(info);
+    }
+
+    bool isInternalNull() const {
+        return std::holds_alternative<BfsarInternalNullFile>(info);
+    }
+};
+
+struct BfsarEmbeddedData {
+    std::string name;
+    BfsarFileInfo fileData;
 };
 
 struct BfsarPrioInfo {
@@ -72,9 +92,7 @@ struct BfsarSequenceSound {
     std::optional<BfsarPrioInfo> prioInfo{};
 };
 
-struct BfsarSound {
-    std::string name;
-    BfsarFileInfo fileData;
+struct BfsarSound : public BfsarEmbeddedData {
     uint32_t playerId;
     uint8_t initialVolume;
     uint8_t remoteFilter;
@@ -93,23 +111,14 @@ struct BfsarSoundGroup {
     uint32_t endId;
 };
 
-struct BfsarBank {
-    std::string name;
-    BfsarFileInfo fileData;
+struct BfsarBank : public BfsarEmbeddedData {
 };
 
-struct BfsarWaveArchive {
-    std::string name;
-    BfsarFileInfo fileData;
+struct BfsarWaveArchive : public BfsarEmbeddedData {
     std::optional<uint32_t> waveCount;
 };
 
-/**
- * If file data empty: bfgrp is external
- */
-struct BfsarGroup {
-    std::string name;
-    std::optional<BfsarFileInfo> fileData;
+struct BfsarGroup : public BfsarEmbeddedData {
 };
 
 struct BfsarPlayer {
@@ -133,7 +142,7 @@ struct BfsarStringEntry {
     uint32_t size;
 };
 
-struct BfsarReadContext {
+struct BfsarContext {
     std::vector<BfsarSound> sounds;
     std::vector<BfsarSoundGroup> soundGroups;
     std::vector<BfsarBank> banks;

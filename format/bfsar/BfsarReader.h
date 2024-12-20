@@ -16,23 +16,21 @@ public:
         return m_Context.has_value();
     }
 
-    BfsarReadContext getContext() {
+    const BfsarContext& getContext() {
         return m_Context.value();
     }
-
-    std::span<const uint8_t> getFileData(uint32_t offset, uint32_t size);
 private:
-    std::optional<BfsarReadContext> readHeader();
+    std::optional<BfsarContext> readHeader();
 
-    std::optional<BfsarReadContext> readHeaderSections();
+    std::optional<BfsarContext> readHeaderSections();
 
     std::optional<std::vector<std::string>> readStrg();
 
-    bool readLut();
+    bool readLut(const std::vector<std::string>& strTable);
 
-    void printLutEntry(uint32_t baseOff, const std::string &prefix, bool isLeft);
+    void printLutEntry(uint32_t baseOff, const std::string &prefix, bool isLeft, const std::vector<std::string>& strTable);
 
-    std::optional<BfsarReadContext> readInfo(const std::vector<std::string> &stringTable);
+    std::optional<BfsarContext> readInfo(const std::vector<std::string> &stringTable);
 
     std::optional<BfsarSound> readSoundInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
 
@@ -71,6 +69,6 @@ private:
 
 private:
     InMemoryStream m_Stream;
-    std::optional<BfsarReadContext> m_Context;
+    std::optional<BfsarContext> m_Context;
     uint32_t m_FileOffset = 0;
 };

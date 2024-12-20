@@ -62,7 +62,7 @@ std::optional<BfwarReadContext> BfwarReader::readHeaderSections() {
 std::optional<std::vector<BfwarFile>> BfwarReader::readInfo() {
     uint32_t magic = m_Stream.readU32();
     if (magic != 0x4f464e49) {
-        std::cerr << "INFO magic in FGRP file does not match!" << std::endl;
+        std::cerr << "INFO magic in FWAR file does not match!" << std::endl;
         return std::nullopt;
     }
     uint32_t size = m_Stream.readU32();
@@ -83,7 +83,7 @@ std::optional<std::vector<BfwarFile>> BfwarReader::readInfo() {
 uint32_t BfwarReader::readFile() {
     uint32_t magic = m_Stream.readU32();
     if (magic != 0x454c4946) {
-        std::cerr << "FILE magic in FGRP file does not match!" << std::endl;
+        std::cerr << "FILE magic in FWAR file does not match!" << std::endl;
         return 0;
     }
 

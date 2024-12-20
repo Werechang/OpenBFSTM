@@ -17,26 +17,24 @@ public:
         return m_Context.has_value();
     }
 
-    BfgrpReadContext getContext() {
+    BfgrpContext getContext() {
         return m_Context.value();
     }
 
-    std::span<const uint8_t> getFileData(uint32_t offset, uint32_t size);
-
 private:
-    std::optional<BfgrpReadContext> readHeader();
+    std::optional<BfgrpContext> readHeader();
 
-    std::optional<BfgrpReadContext> readHeaderSections();
+    std::optional<BfgrpContext> readHeaderSections();
 
-    std::optional<std::vector<BfgrpFileEntry>> readInfo();
+    std::optional<std::vector<BfgrpNestedFile>> readInfo();
 
     uint32_t readFile();
 
-    std::optional<BfgrpFileEntry> readFileLocationInfo();
+    std::optional<BfgrpNestedFile> readFileLocationInfo();
 
     std::optional<std::vector<BfgrpDepEntry>> readGroupItemExtraInfo();
 private:
     InMemoryStream m_Stream;
-    std::optional<BfgrpReadContext> m_Context;
+    std::optional<BfgrpContext> m_Context;
     uint32_t m_FileOffset = 0;
 };

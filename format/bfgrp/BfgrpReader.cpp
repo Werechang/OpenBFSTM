@@ -10,7 +10,7 @@ BfgrpReader::BfgrpReader(const MemoryResource &resource) : m_Stream(resource) {
     m_Context = readHeader();
 }
 
-std::optional<BfgrpReadContext> BfgrpReader::readHeader() {
+std::optional<BfgrpContext> BfgrpReader::readHeader() {
     uint32_t magic = m_Stream.readU32();
     uint16_t bom = m_Stream.readU16();
     if (bom != 0xFEFF) {
@@ -33,7 +33,7 @@ std::optional<BfgrpReadContext> BfgrpReader::readHeader() {
     return readHeaderSections();
 }
 
-std::optional<BfgrpReadContext> BfgrpReader::readHeaderSections() {
+std::optional<BfgrpContext> BfgrpReader::readHeaderSections() {
     uint32_t sectionNum = m_Stream.readU16();
     m_Stream.skip(2);
     std::optional<SectionInfo> infoSection, fileSection, infoExSection;
@@ -53,19 +53,19 @@ std::optional<BfgrpReadContext> BfgrpReader::readHeaderSections() {
                 return std::nullopt;
         }
     }
+    m_Stream.seek(fileSection->offset);
+    m_FileOffset = readFile();
+    if (m_FileOffset == 0) return std::nullopt;
     m_Stream.seek(infoSection->offset);
     auto fileEntries = readInfo();
     m_Stream.seek(infoExSection->offset);
     auto depInfo = readGroupItemExtraInfo();
 
     if (!fileEntries || !depInfo) return std::nullopt;
-    m_Stream.seek(fileSection->offset);
-    m_FileOffset = readFile();
-    if (m_FileOffset == 0) return std::nullopt;
-    return BfgrpReadContext{fileEntries.value(), depInfo.value()};
+    return BfgrpContext{fileEntries.value(), depInfo.value()};
 }
 
-std::optional<std::vector<BfgrpFileEntry>> BfgrpReader::readInfo() {
+std::optional<std::vector<BfgrpNestedFile>> BfgrpReader::readInfo() {
     uint32_t magic = m_Stream.readU32();
     if (magic != 0x4f464e49) {
         std::cerr << "INFO magic in FGRP file does not match!" << std::endl;
@@ -83,7 +83,7 @@ std::optional<std::vector<BfgrpFileEntry>> BfgrpReader::readInfo() {
         }
         offsets.emplace_back(ref.offset);
     }
-    std::vector<BfgrpFileEntry> entries{};
+    std::vector<BfgrpNestedFile> entries{};
     for (auto offset: offsets) {
         m_Stream.seek(infoStart + offset);
         auto res = readFileLocationInfo();
@@ -93,8 +93,8 @@ std::optional<std::vector<BfgrpFileEntry>> BfgrpReader::readInfo() {
     return entries;
 }
 
-std::optional<BfgrpFileEntry> BfgrpReader::readFileLocationInfo() {
-    BfgrpFileEntry entry{};
+std::optional<BfgrpNestedFile> BfgrpReader::readFileLocationInfo() {
+    BfgrpNestedFile entry{};
     entry.fileIndex = m_Stream.readU32();
     uint16_t type = m_Stream.readU16();
     if (type != 0x1f00) {
@@ -102,8 +102,7 @@ std::optional<BfgrpFileEntry> BfgrpReader::readFileLocationInfo() {
         return std::nullopt;
     }
     m_Stream.skip(2);
-    entry.offset = m_Stream.readS32();
-    entry.size = m_Stream.readU32();
+    entry.file = m_Stream.getSpanAt(m_Stream.readS32() + m_FileOffset, m_Stream.readU32());
     return entry;
 }
 
@@ -143,9 +142,4 @@ uint32_t BfgrpReader::readFile() {
 
     uint32_t size = m_Stream.readU32();
     return m_Stream.tell();
-}
-
-std::span<const uint8_t> BfgrpReader::getFileData(uint32_t offset, uint32_t size) {
-    if (!m_Context) return {};
-    return m_Stream.getSpanAt(offset + m_FileOffset, size);
 }

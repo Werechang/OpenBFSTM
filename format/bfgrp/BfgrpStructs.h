@@ -11,23 +11,12 @@ struct BfgrpDepEntry {
     uint32_t loadFlags;
 };
 
-struct BfgrpFileEntry {
-    uint32_t fileIndex;
-    int32_t offset;
-    uint32_t size;
-};
-
 struct BfgrpNestedFile {
     uint32_t fileIndex;
     std::span<const uint8_t> file;
 };
 
-struct BfgrpWriteContext {
+struct BfgrpContext {
     std::vector<BfgrpNestedFile> files{};
-    std::vector<BfgrpDepEntry> dependencies{};
-};
-
-struct BfgrpReadContext {
-    std::vector<BfgrpFileEntry> fileData{};
     std::vector<BfgrpDepEntry> dependencies{};
 };

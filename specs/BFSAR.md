@@ -76,9 +76,9 @@ Only used for fast entry access from a string.
 The **compare function** is a special key with which the input string of the lookup function is compared.
 The lookup function gets the file data (item_id) from a string which should match the string of that entry in the string
 table.
-The first 13 bits of the compare_func (`compare_func >> 3`) are used as an id into the name (with a bounds
+The first 13 bits of the compare_func (`compare_func >> 3`) are used as an index into the name (with a bounds
 check).
-The last 3 bits are used to see if the n-th bit of the character at that id is turned on (
+The last 3 bits are used to see if the n-th bit of the character at that index is turned on (
 `1 << (~compare_func & 0x7)`).
 These bits are inverted for the comparison.
 
@@ -150,7 +150,7 @@ An exception is the wave archive info. According to my research the number of en
 | 0xa    | u16  | -              | padding                                                      |
 | 0xc    | u16  | sound_type     | 0x2201: prefetch/stream, 0x2202: Wave, 0x2203: sequence      |
 | 0xe    | u16  | -              | padding                                                      |
-| 0x10   | u32  | sound_info_off | Relative to 0x0 here, the type is defined by the sound type. |
+| 0x10   | s32  | sound_info_off | Relative to 0x0 here, the type is defined by the sound type. |
 | 0x14   | u32  | flags          | See below                                                    |
 | 0x18   | ...  | data           | See below                                                    |
 
@@ -174,30 +174,30 @@ The rest of the flag bits are unused in this version.
 
 **Sound3D Info**
 
-| Offset | Type  | Name  | Description |
-|--------|-------|-------|-------------|
-| 0x0    | u32   | flags | ?           |
-| 0x4    | float | ?     |             |
-| 0x8    | u8    | ?     | Always 1    |
-| 0x9    | u8    | ?     | Always 0    |
+| Offset | Type  | Name  | Description                                                   |
+|--------|-------|-------|---------------------------------------------------------------|
+| 0x0    | u32   | flags | Unknown, either 0x0, 0xc or 0xf                               |
+| 0x4    | float | ?     | Unknown, either 0.5, 0.7 or 0.8, doesn't correlate with flags |
+| 0x8    | u8    | ?     | Always 1                                                      |
+| 0x9    | u8    | ?     | Always 0                                                      |
 
 ##### Stream Sound Info (0x2201)
 
-| Offset | Type  | Name                  | Description                                      |
-|--------|-------|-----------------------|--------------------------------------------------|
-| 0x0    | u16   | valid_tracks          | Bitmask defining valid tracks                    |
-| 0x2    | u16   | channel_count         |                                                  |
-| 0x4    | u16   | track_info_table_flag | 0x0101 (always set)                              |
-| 0x6    | u16   | -                     | padding                                          |
-| 0x8    | s32   | track_info_table_off  | Relative to 0x0 in this structure if flag is set |
-| 0xc    | float | ?                     | Always 1.0f                                      |
-| 0x10   | u16   | send_value_flag       | 0x220f (always set)                              |
-| 0x12   | u16   | -                     | padding                                          |
-| 0x14   | u32   | send_value_offset     | Offset to the send value, relative to 0x0 here   |
-| 0x18   | u16   | stream_sound_ext_flag | 0x2210 (never set)                               |
-| 0x1a   | u16   | -                     | padding                                          |
-| 0x1c   | s32   | stream_sound_ext_off  | relative to 0x0 here if flag is set              |
-| 0x20   | u32   | ?                     |                                                  |
+| Offset | Type  | Name                  | Description                                                        |
+|--------|-------|-----------------------|--------------------------------------------------------------------|
+| 0x0    | u16   | valid_tracks          | Bitmask defining valid tracks                                      |
+| 0x2    | u16   | channel_count         |                                                                    |
+| 0x4    | u16   | track_info_table_flag | 0x0101 (always set)                                                |
+| 0x6    | u16   | -                     | padding                                                            |
+| 0x8    | s32   | track_info_table_off  | Relative to 0x0 in this structure if flag is set                   |
+| 0xc    | float | ?                     | Always 1.0f                                                        |
+| 0x10   | u16   | send_value_flag       | 0x220f (always set)                                                |
+| 0x12   | u16   | -                     | padding                                                            |
+| 0x14   | u32   | send_value_offset     | Offset to the send value, relative to 0x0 here                     |
+| 0x18   | u16   | stream_sound_ext_flag | 0x2210 (never set)                                                 |
+| 0x1a   | u16   | -                     | padding                                                            |
+| 0x1c   | s32   | stream_sound_ext_off  | relative to 0x0 here if flag is set                                |
+| 0x20   | u32   | ?                     | Unknown index. It correlates with music not being an ambient sound |
 
 **Send Value**
 0xAABBBBCC, usage unknown, always 0x7f
@@ -226,21 +226,24 @@ This is why the number of valid tracks correlates with the channel count.
 
 **Track Info**
 
-| Offset | Type | Name                    | Description                                |
-|--------|------|-------------------------|--------------------------------------------|
-| 0x0    | u8   | ?                       |                                            |
-| 0x1    | u8   | ?                       | Always 0x40                                |
-| 0x2    | u8   | ?                       |                                            |
-| 0x3    | u8   | ?                       |                                            |
-| 0x4    | u16  | track_channel_info_flag | 0x0100 (always set)                        |
-| 0x6    | u16  | -                       | padding                                    |
-| 0x8    | s32  | track_channel_info_off  | relative to 0x0                            |
-| 0xc    | u16  | send_value_flag         | 0x220f (always set)                        |
-| 0xe    | u16  | -                       | padding                                    |
-| 0x10   | s32  | send_value_off          | relative to 0x0, send value is always 0x7f |
-| 0x14   | u8   | ?                       | Always 0x40                                |
-| 0x15   | u8   | ?                       | Always 0                                   |
-| 0x16   | u8   | ?                       | Always 0                                   |
+FIXME: Size might be incorrect. There is always a 0x28 gap between entry offsets (Maybe because of tci and sv).
+
+| Offset | Type | Name                    | Description                                                                |
+|--------|------|-------------------------|----------------------------------------------------------------------------|
+| 0x0    | u8   | ?                       | Unknown, 0x7f in most cases                                                |
+| 0x1    | u8   | ?                       | Always 0x40                                                                |
+| 0x2    | u8   | ?                       | Unknown, 0 in most, 0x7f in some and different values in the rest of cases |
+| 0x3    | bool | ?                       |                                                                            |
+| 0x4    | u16  | track_channel_info_flag | 0x0100 (always set)                                                        |
+| 0x6    | u16  | -                       | padding                                                                    |
+| 0x8    | s32  | track_channel_info_off  | relative to 0x0                                                            |
+| 0xc    | u16  | send_value_flag         | 0x220f (always set)                                                        |
+| 0xe    | u16  | -                       | padding                                                                    |
+| 0x10   | s32  | send_value_off          | relative to 0x0, send value is always 0x7f                                 |
+| 0x14   | u8   | ?                       | Always 0x40                                                                |
+| 0x15   | u8   | ?                       | Always 0                                                                   |
+| 0x16   | u8   | ?                       | Always 0                                                                   |
+| 0x17   | u8   | ?                       |                                                                            |
 
 **Track Channel Info**
 
@@ -264,7 +267,7 @@ This is why the number of valid tracks correlates with the channel count.
 |--------|------|--------------|---------------------------------------------------------------|
 | 0x0    | u16  | bank_id_flag | 0x0100                                                        |
 | 0x2    | u16  | -            | padding                                                       |
-| 0x4    | u32  | bank_id_off  | See below, relative to 0x0 here                               |
+| 0x4    | s32  | bank_id_off  | See below, relative to 0x0 here                               |
 | 0x8    | u32  | valid_tracks | Bitmask defining the valid tracks                             |
 | 0xc    | u32  | flags        | 0: Start Offset 1: channel priority + is release priority fix |
 | 0x10   | ...  | data         | specified by flags                                            |
@@ -284,10 +287,10 @@ This is why the number of valid tracks correlates with the channel count.
 | 0x4    | u32  | end_id                  | End Item Id, can be -1 (Meaning?)           |
 | 0x8    | u16  | file_table_flag         | Always 0x0100                               |
 | 0xa    | u16  | -                       | padding                                     |
-| 0xc    | u32  | file_table_off          | Relative to 0x0 here                        |
+| 0xc    | s32  | file_table_off          | Relative to 0x0 here                        |
 | 0x10   | u16  | wave_arc_table_ref_flag | 0x2205 if set, 0 else                       |
 | 0x12   | u16  | -                       | padding                                     |
-| 0x14   | u16  | wave_arc_table_ref_off  | 0xffffffff if not set, relative to 0x0 here |
+| 0x14   | s32  | wave_arc_table_ref_off  | 0xffffffff if not set, relative to 0x0 here |
 | 0x18   | u32  | flags                   | 0: string id                                |
 | 0x1c   | ...  | data                    | specified by flags                          |
 
@@ -369,6 +372,13 @@ Information about the location of a group (bfgrp).
 | 0xe    | u16  | -                  | padding                             |
 | 0x10   | s32  | group_table_offset | relative from 0x0                   |
 
+**Group Table**
+
+| Offset | Type             | Name      | Description       |
+|--------|------------------|-----------|-------------------|
+| 0x0    | u32              | entry_num |                   |
+| 0x4    | u32\[entry_num\] | entries   | item id, meaning? |
+
 If offset is 0xffffffff, probably means inside a group file
 
 ##### External File Info
@@ -387,7 +397,7 @@ This is used to calculate the required amount of memory.
 | 0x0    | u16  | sequence_num        |                                                                            |
 | 0x2    | u16  | sequence_track_num  |                                                                            |
 | 0x4    | u16  | stream_num          |                                                                            |
-| 0x6    | u16  | ?                   |                                                                            |
+| 0x6    | u16  | ?                   | Unknown, either 0x1, 0x20 or 0x30                                          |
 | 0x8    | u16  | stream_channel_num  |                                                                            |
 | 0xa    | u16  | wave_num            |                                                                            |
 | 0xc    | u16  | ?                   | Always same value as wave_num                                              |

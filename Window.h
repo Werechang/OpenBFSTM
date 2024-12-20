@@ -22,7 +22,7 @@ public:
 
     void preDraw();
 
-    void draw(AudioPlayback& audio, BfstmContext& context);
+    void draw(AudioPlayback& audio);
 
     void afterDraw();
 private:

@@ -198,7 +198,11 @@ public:
         return a;
     }
 
-    void writeBuffer(std::span<const uint8_t> span) {
+    void writeBuffer(const std::span<const int8_t>& span) {
+        writeBuffer(reinterpret_cast<const std::span<const uint8_t>&>(span));
+    }
+
+    void writeBuffer(const std::span<const uint8_t>& span) {
         uint32_t replaceCount = std::min(m_Resource.m_Data.size() - m_Pos, span.size());
         if (replaceCount > 0) {
             std::copy(span.begin(), span.begin() + replaceCount, m_Resource.m_Data.begin() + m_Pos);

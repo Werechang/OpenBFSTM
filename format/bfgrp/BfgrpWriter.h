@@ -10,15 +10,15 @@
 
 class BfgrpWriter {
 public:
-    BfgrpWriter(MemoryResource& resource, const BfgrpWriteContext &context);
+    BfgrpWriter(MemoryResource& resource, const BfgrpContext &context);
 private:
-    void writeHeader(const BfgrpWriteContext &context);
+    void writeHeader(const BfgrpContext &context);
 
-    uint32_t writeInfo(const BfgrpWriteContext &context);
+    uint32_t writeInfo(const BfgrpContext &context);
 
-    uint32_t writeFile(const BfgrpWriteContext &context);
+    uint32_t writeFile(const BfgrpContext &context);
 
-    uint32_t writeInfx(const BfgrpWriteContext &context);
+    uint32_t writeInfx(const BfgrpContext &context);
 
 private:
     OutMemoryStream m_Stream;
