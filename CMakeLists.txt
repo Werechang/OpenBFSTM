@@ -53,7 +53,8 @@ add_executable(OpenBFSTM main.cpp
         format/bfwav/BfwavReader.h
         format/bfwsd/BfwsdReader.cpp
         format/bfwsd/BfwsdReader.h
-        format/bfwsd/BfwsdStructs.h)
+        format/bfwsd/BfwsdStructs.h
+        MemoryResource.cpp)
 
 
 target_link_libraries(OpenBFSTM PRIVATE glfw OpenGL imgui::imgui)

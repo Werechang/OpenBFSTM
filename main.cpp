@@ -17,6 +17,7 @@
 #include "format/bfwar/BfwarWriter.h"
 #include "playback/DummyPlayback.h"
 #include "format/bfwav/BfwavReader.h"
+#include "format/bfsar/BfsarWriter.h"
 
 snd_pcm_format_t getFormat(const SoundEncoding encoding) {
     switch (encoding) {
@@ -82,13 +83,28 @@ void testOne() {
         std::cout << "Reading... " << std::endl;
         MemoryResource resource{in};
         BfsarReader reader(resource);
+        if (reader.wasReadSuccess()) {
+            for (auto &fi : reader.getContext().fileInfo) {
+                if (fi.isInternal()) {
+                    auto span = fi.getInternal().data;
+                }
+            }
+            MemoryResource outResource{};
+            BfsarWriter writer(outResource, reader.getContext());
 
+            BfsarReader reRead(outResource);
+            if (!reRead.wasReadSuccess()) {
+                abort();
+            }
+
+            outResource.writeToFile("/home/cookieso/OdysseyModding/bfsar/BgmDataCustom.bfsar");
+        }
     }
     exit(0);
 }
 
 int main(int argc, char **argv) {
-    iterateAll();
+    //iterateAll();
     testOne();
 
     std::ifstream in{

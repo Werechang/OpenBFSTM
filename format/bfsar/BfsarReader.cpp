@@ -8,6 +8,7 @@
 
 BfsarReader::BfsarReader(const MemoryResource &resource) : m_Stream(resource) {
     m_Context = readHeader();
+    m_Stream.evaluateCoverage();
 }
 
 std::optional<BfsarContext> BfsarReader::readHeader() {
@@ -60,7 +61,7 @@ std::optional<BfsarContext> BfsarReader::readHeaderSections() {
     m_FileOffset = readFile();
     if (m_FileOffset == 0) return std::nullopt;
     m_Stream.seek(infoSection->offset);
-    auto context = readInfo(stringTable.value());
+    auto context = readInfo(*stringTable);
 
     return context;
 }
@@ -90,7 +91,7 @@ std::optional<std::vector<std::string>> BfsarReader::readStrg() {
         auto entry = readStrTbl();
         if (!entry) return std::nullopt;
         poolOff += entry->size;
-        stringEntries.emplace_back(entry.value());
+        stringEntries.emplace_back(*entry);
     }
     std::vector<std::string> stringTable{};
     for (auto entry: stringEntries) {
@@ -149,16 +150,15 @@ void BfsarReader::printLutEntry(uint32_t baseOff, const std::string &prefix, boo
     uint32_t rightChild = m_Stream.readU32();
     uint32_t strTblIdx = m_Stream.readU32();
     uint32_t itemId = m_Stream.readU32();
-    std::cout << prefix << (isLeft ? "├─" : "└─");
+    //std::cout << prefix << (isLeft ? "├─" : "└─");
     if (itemId != 0xffffffffu) {
         uint32_t type = itemId >> 24;
         //std::cout << getTypeAsString(type);
         //std::cout << " (name: " << std::hex << strTable[strTblIdx] << ", id: " << itemId
         //          << ")" << std::endl;
         //std::cout << strTable[strTblIdx] << std::endl;
-        std::cout << strTable[strTblIdx] << std::endl;
     } else {
-        std::cout << std::dec << (compareFunc >> 3) << "*" << (~compareFunc & 7) << std::endl;
+        //std::cout << std::dec << (compareFunc >> 3) << "*" << (~compareFunc & 7) << std::endl;
     }
     if (!isLeaf) {
         m_Stream.seek(baseOff + leftChild * 0x5 * 0x4);
@@ -177,8 +177,8 @@ bool BfsarReader::readLut(const std::vector<std::string> &strTable) {
         return false;
     }
     uint32_t lutStartOff = m_Stream.tell();
-    m_Stream.skip(rootIndex * 0x5 * 0x4);
-    //printLutEntry(lutStartOff, "", false, strTable);
+    m_Stream.seek(lutStartOff + rootIndex * 0x5 * 0x4);
+    printLutEntry(lutStartOff, "", false, strTable);
     return true;
 }
 
@@ -234,52 +234,47 @@ std::optional<BfsarContext> BfsarReader::readInfo(const std::vector<std::string>
     }
     m_Stream.skip(2);
     int32_t soundArcPlayerInfoOff = m_Stream.readS32();
+    BfsarContext context{};
 
-    std::vector<BfsarFileInfo> fileData{};
     m_Stream.seek(fileInfoOff + infoOff);
     for (uint32_t infoRef: readInfoRef(0x220a)) {
         m_Stream.seek(fileInfoOff + infoOff + infoRef);
         auto result = readFileInfo();
         if (!result) return std::nullopt;
-        fileData.emplace_back(result.value());
+        context.fileInfo.emplace_back(*result);
     }
-
-    BfsarContext context{};
 
     m_Stream.seek(soundOff + infoOff);
     for (uint32_t infoRef: readInfoRef(0x2200)) {
         m_Stream.seek(soundOff + infoOff + infoRef);
-        auto res = readSoundInfo(stringTable, fileData);
+        auto res = readSoundInfo(stringTable);
         if (!res) return std::nullopt;
-        context.sounds.emplace_back(res.value());
+        context.sounds.emplace_back(*res);
     }
 
     m_Stream.seek(soundGroupOff + infoOff);
     for (uint32_t infoRef: readInfoRef(0x2204)) {
         m_Stream.seek(soundGroupOff + infoOff + infoRef);
-        context.soundGroups.emplace_back(readSoundGroupInfo(stringTable, fileData));
+        context.soundGroups.emplace_back(readSoundGroupInfo(stringTable));
     }
 
     m_Stream.seek(bankOff + infoOff);
     for (uint32_t infoRef: readInfoRef(0x2206)) {
         m_Stream.seek(bankOff + infoOff + infoRef);
-        context.banks.emplace_back(readBankInfo(stringTable, fileData));
+        context.banks.emplace_back(readBankInfo(stringTable));
     }
 
     m_Stream.seek(waveArcOff + infoOff);
     for (uint32_t infoRef: readInfoRef(0x2207)) {
         m_Stream.seek(waveArcOff + infoOff + infoRef);
-        context.waveArchives.emplace_back(readWaveArchiveInfo(stringTable, fileData));
+        context.waveArchives.emplace_back(readWaveArchiveInfo(stringTable));
     }
 
     m_Stream.seek(groupInfoOff + infoOff);
-    uint32_t grpCnt = 0;
     for (uint32_t infoRef: readInfoRef(0x2208)) {
         m_Stream.seek(groupInfoOff + infoOff + infoRef);
-        ++grpCnt;
-        context.groups.emplace_back(readGroupInfo(stringTable, fileData));
+        context.groups.emplace_back(readGroupInfo(stringTable));
     }
-    std::cout << grpCnt << std::endl;
 
     m_Stream.seek(playerInfoOff + infoOff);
     for (uint32_t infoRef: readInfoRef(0x2209)) {
@@ -289,48 +284,6 @@ std::optional<BfsarContext> BfsarReader::readInfo(const std::vector<std::string>
 
     m_Stream.seek(soundArcPlayerInfoOff + infoOff);
     context.sarPlayer = readSoundArchivePlayerInfo();
-
-    /*
-    for (auto &str : stringTable) {
-        for (auto i = 0; i < context.sounds.size(); ++i) {
-            if (str == context.sounds[i].name) {
-                std::cout << "SND " << i << ' ' << context.sounds[i].subInfo.index() << ' ' << str << std::endl;
-                goto end;
-            }
-        }
-        for (auto i = 0; i < context.soundGroups.size(); ++i) {
-            if (str == context.soundGroups[i].name) {
-                std::cout << "SGP " << i << ' ' << str << std::endl;
-                goto end;
-            }
-        }
-        for (auto i = 0; i < context.banks.size(); ++i) {
-            if (str == context.banks[i].name) {
-                std::cout << "BNK " << i << ' ' << str << std::endl;
-                goto end;
-            }
-        }
-        for (auto i = 0; i < context.players.size(); ++i) {
-            if (str == context.players[i].name) {
-                std::cout << "PLR " << i << ' ' << str << std::endl;
-                goto end;
-            }
-        }
-        for (auto i = 0; i < context.waveArchives.size(); ++i) {
-            if (str == context.waveArchives[i].name) {
-                std::cout << "WAR " << i << ' ' << str << std::endl;
-                goto end;
-            }
-        }
-        for (auto i = 0; i < context.groups.size(); ++i) {
-            if (str == context.groups[i].name) {
-                std::cout << "GRP " << i << ' ' << str << std::endl;
-                goto end;
-            }
-        }
-        end:
-    }*/
-    // SND, SGP, BNK, GRP, PLR
 
     return context;
 }
@@ -362,10 +315,11 @@ std::vector<uint32_t> BfsarReader::readInfoRef(uint16_t requiredType) {
 }
 
 std::optional<BfsarSound>
-BfsarReader::readSoundInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData) {
+BfsarReader::readSoundInfo(const std::vector<std::string> &stringTable) {
     BfsarSound sound{};
     uint32_t startOff = m_Stream.tell();
-    sound.fileData = fileData[m_Stream.readU32()];
+    uint32_t fileIdx = m_Stream.readU32();
+    sound.fileIndex = fileIdx;
     sound.playerId = m_Stream.readU32();
     sound.initialVolume = m_Stream.readU8();
     sound.remoteFilter = m_Stream.readU8();
@@ -415,13 +369,19 @@ BfsarReader::readSoundInfo(const std::vector<std::string> &stringTable, const st
         sound.isFrontBypass = m_Stream.readU32();
     }
 
+    sum = 0;
+    for (int i = 18; i < 32; ++i) {
+        if (hasFlag(flags, i)) sum += 4;
+    }
+    m_Stream.skip(sum);
+
     m_Stream.seek(infoOffset + startOff);
 
     switch (soundType) {
         case 0x2201: {
             auto strRet = readStreamSoundInfo();
             if (!strRet) return std::nullopt;
-            sound.subInfo = strRet.value();
+            sound.subInfo = *strRet;
             break;
         }
         case 0x2202: {
@@ -449,7 +409,7 @@ std::optional<BfsarStreamSound> BfsarReader::readStreamSoundInfo() {
     uint16_t titFlag = m_Stream.readU16();
     m_Stream.skip(2);
     int32_t titOff = m_Stream.readS32();
-    auto unkFloat = std::bit_cast<float>(m_Stream.readU32());
+    streamSound.unkFloat = std::bit_cast<float>(m_Stream.readU32());
     uint16_t svFlag = m_Stream.readU16();
     m_Stream.skip(2);
     int32_t svOff = m_Stream.readS32();
@@ -457,6 +417,9 @@ std::optional<BfsarStreamSound> BfsarReader::readStreamSoundInfo() {
     m_Stream.skip(2);
     int32_t sseOff = m_Stream.readS32();
     streamSound.unk = m_Stream.readU32();
+
+    m_Stream.seek(start + svOff);
+    uint32_t sendValue = m_Stream.readU32();
 
     m_Stream.seek(start + titOff);
     uint32_t titEntryNum = m_Stream.readU32();
@@ -470,23 +433,31 @@ std::optional<BfsarStreamSound> BfsarReader::readStreamSoundInfo() {
         tiOffsets.emplace_back(entry.offset);
     }
     for (int32_t tiOffset: tiOffsets) {
+        // TODO Coverage & unknown variables
         m_Stream.seek(start + titOff + tiOffset);
-        uint32_t f1 = m_Stream.readU8();
-        uint32_t f2 = m_Stream.readU8();
-        uint32_t f3 = m_Stream.readU8();
-        uint32_t f4 = m_Stream.readU8();
+        BfsarTrackInfo trackInfo{};
+        trackInfo.unk0 = m_Stream.readU8();
+        trackInfo.unk1 = m_Stream.readU8();
+        trackInfo.unk2 = m_Stream.readU8();
+        trackInfo.unk3 = m_Stream.readU8();
         uint16_t tciFlag = m_Stream.readU16();
         m_Stream.skip(2);
         uint32_t tciOff = m_Stream.readS32();
         uint16_t svcFlag = m_Stream.readU16();
         m_Stream.skip(2);
         uint32_t svcOff = m_Stream.readS32();
+        trackInfo.unk4 = m_Stream.readU8();
+        trackInfo.unk5 = m_Stream.readU8();
+        m_Stream.skip(2);
+        m_Stream.seek(start + titOff + tiOffset + svcOff);
+        uint32_t sendValueC = m_Stream.readU32();
 
         m_Stream.seek(start + titOff + tiOffset + tciOff);
-        uint32_t ciEntryNum = m_Stream.readU32();
-        uint32_t c0 = m_Stream.readU8();
+        trackInfo.trackChannelInfo.channels = m_Stream.readU32();
+        trackInfo.trackChannelInfo.channelIndexL = m_Stream.readU8();
         // c1 is 0 when channelCount == ciEntryNum == 1
-        uint32_t c1 = m_Stream.readU8();
+        trackInfo.trackChannelInfo.channelIndexR = m_Stream.readU8();
+        streamSound.trackInfo.emplace_back(trackInfo);
     }
 
     return streamSound;
@@ -495,7 +466,7 @@ std::optional<BfsarStreamSound> BfsarReader::readStreamSoundInfo() {
 BfsarWaveSound BfsarReader::readWaveSoundInfo() {
     BfsarWaveSound waveSound{};
     waveSound.archiveId = m_Stream.readU32();
-    uint32_t unk1 = m_Stream.readU32();
+    waveSound.unk = m_Stream.readU32();
     uint32_t flags = m_Stream.readU32();
     if (hasFlag(flags, 0)) {
         BfsarPrioInfo prioInfo{};
@@ -539,13 +510,13 @@ BfsarSound3D BfsarReader::readSound3DInfo(uint32_t startOff) {
     sound3D.unkFloat = std::bit_cast<float>(m_Stream.readU32());
     sound3D.unkBool0 = m_Stream.readU8();
     sound3D.unkBool1 = m_Stream.readU8();
+    m_Stream.skip(2);
 
     m_Stream.seek(mem);
     return sound3D;
 }
 
-BfsarSoundGroup BfsarReader::readSoundGroupInfo(const std::vector<std::string> &stringTable,
-                                                const std::vector<BfsarFileInfo> &fileData) {
+BfsarSoundGroup BfsarReader::readSoundGroupInfo(const std::vector<std::string> &stringTable) {
     BfsarSoundGroup group{};
     uint32_t startOff = m_Stream.tell();
     group.startId = m_Stream.readU32();
@@ -565,17 +536,29 @@ BfsarSoundGroup BfsarReader::readSoundGroupInfo(const std::vector<std::string> &
         m_Stream.seek(startOff + warTROff);
         uint16_t warTFlag = m_Stream.readU16();
         m_Stream.skip(2);
-        m_Stream.seek(startOff + warTROff + m_Stream.readS32());
+        int32_t warTOff = m_Stream.readS32();
+        m_Stream.seek(startOff + warTROff + warTOff);
+        uint32_t wtSize = m_Stream.readU32();
+        group.waveArcIdTable = std::vector<uint32_t>();
+        for (int i = 0; i < wtSize; ++i) {
+            group.waveArcIdTable->emplace_back(m_Stream.readU32());
+        }
     }
 
+    m_Stream.seek(startOff + ftOff);
+    uint32_t entryNum = m_Stream.readU32();
+    for (auto i = 0; i < entryNum; ++i) {
+        group.fileIndices.emplace_back(m_Stream.readU32());
+    }
     return group;
 }
 
 BfsarBank
-BfsarReader::readBankInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData) {
+BfsarReader::readBankInfo(const std::vector<std::string> &stringTable) {
     BfsarBank bank{};
     uint32_t startOff = m_Stream.tell();
-    bank.fileData = fileData[m_Stream.readU32()];
+    uint32_t fileIdx = m_Stream.readU32();
+    bank.fileIndex = fileIdx;
     uint32_t waFlag = m_Stream.readU16();
     m_Stream.skip(2);
     uint32_t waOff = m_Stream.readU32();
@@ -583,16 +566,21 @@ BfsarReader::readBankInfo(const std::vector<std::string> &stringTable, const std
     if (hasFlag(flags, 0)) {
         bank.name = stringTable[m_Stream.readU32()];
     }
+    m_Stream.seek(startOff + waOff);
+    uint32_t waSize = m_Stream.readU32();
+    for (auto i = 0; i < waSize; ++i) {
+        bank.waveArcIdTable.emplace_back(m_Stream.readU32());
+    }
 
     return bank;
 }
 
-BfsarWaveArchive BfsarReader::readWaveArchiveInfo(const std::vector<std::string> &stringTable,
-                                                  const std::vector<BfsarFileInfo> &fileData) {
+BfsarWaveArchive BfsarReader::readWaveArchiveInfo(const std::vector<std::string> &stringTable) {
     BfsarWaveArchive waveArchive{};
-    waveArchive.fileData = fileData[m_Stream.readU32()];
+    uint32_t fileIdx = m_Stream.readU32();
+    waveArchive.fileIndex = fileIdx;
     // TODO check with bfwar reader
-    uint32_t fileNum = m_Stream.readU32();
+    waveArchive.unk = m_Stream.readU32();
 
     uint32_t flags = m_Stream.readU32();
 
@@ -607,12 +595,10 @@ BfsarWaveArchive BfsarReader::readWaveArchiveInfo(const std::vector<std::string>
 }
 
 BfsarGroup
-BfsarReader::readGroupInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData) {
+BfsarReader::readGroupInfo(const std::vector<std::string> &stringTable) {
     BfsarGroup group{};
     uint32_t fileEntry = m_Stream.readU32();
-    if (fileEntry != -1) {
-        group.fileData = fileData[fileEntry];
-    }
+    group.fileIndex = fileEntry;
     uint32_t flags = m_Stream.readU32();
     if (hasFlag(flags, 0)) {
         group.name = stringTable[m_Stream.readU32()];
@@ -660,20 +646,19 @@ std::optional<BfsarFileInfo> BfsarReader::readFileInfo() {
         int32_t groupTableOff = m_Stream.readS32();
         m_Stream.seek(start + offset + groupTableOff);
         // TODO
-        // entryNum > 0 => fileOff = -1 and fileOff = -1 => gtFlag != 0
-        if (gtFlag != 0) {
-            uint32_t entryNum = m_Stream.readU32();
-            for (int i = 0; i < entryNum; ++i) {
-                //std::cout << std::hex << m_Stream.readU32() << std::endl;
-            }
+        // entryNum > 0 => fileOff = -1
+        uint32_t entryNum = m_Stream.readU32();
+        std::vector<uint32_t> gtEntries{};
+        gtEntries.reserve(entryNum);
+        for (int i = 0; i < entryNum; ++i) {
+            gtEntries.emplace_back(m_Stream.readU32());
         }
 
         if (fileOff != -1 && fileSize > 0) {
             auto span = m_Stream.getSpanAt(fileOff + m_FileOffset, fileSize);
             fileInfo.info = BfsarInternalFile{span};
-            std::cout << span[0] << span[1] << span[2] << span[3] << std::endl;
         } else {
-            fileInfo.info = BfsarInternalNullFile{};
+            fileInfo.info = BfsarInternalNullFile{std::move(gtEntries)};
         }
     } else {
         std::cerr << "Location type unknown! " << locType << std::endl;
@@ -691,6 +676,8 @@ BfsarSoundArchivePlayer BfsarReader::readSoundArchivePlayerInfo() {
     archivePlayer.streamChannelLimit = m_Stream.readU16();
     archivePlayer.waveLimit = m_Stream.readU16();
     archivePlayer.unkWaveLimit = m_Stream.readU16();
+    archivePlayer.streamBufferTimes = m_Stream.readU8();
+    archivePlayer.isAdvancedWave = m_Stream.readU8();
 
     return archivePlayer;
 }

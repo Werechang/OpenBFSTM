@@ -51,70 +51,51 @@ private:
     std::vector<uint8_t> m_Data;
 };
 
+// Yes, the coverage check is very primitive and slow.
+//#define COVERAGE_CHECK
+
 class InMemoryStream {
 public:
-    explicit InMemoryStream(const MemoryResource &resource) : m_Resource(resource) {
-    }
+    explicit InMemoryStream(const MemoryResource &resource);
+
+    void evaluateCoverage();
+
+    void addCoverageRegion(uint32_t start, uint32_t size);
 
     template<std::integral Num>
-    Num readNum() {
-        if (m_Pos + sizeof(Num) > m_Resource.m_Data.size()) throw std::out_of_range("Resource oob read");
-        Num res = *reinterpret_cast<const Num *>(m_Resource.getAsPtrUnsafe(m_Pos));
-        m_Pos += sizeof(Num);
-        return res;
-    }
+    Num readNum();
 
-    uint8_t readU8() {
-        return readNum<uint8_t>();
-    }
+    uint8_t readU8();
 
-    int8_t readS8() {
-        return std::bit_cast<int8_t>(readU8());
-    }
+    int8_t readS8();
 
-    uint16_t readU16() {
-        return swapBO ? __builtin_bswap16(readNum<uint16_t>()) : readNum<uint16_t>();
-    }
+    uint16_t readU16();
 
-    int16_t readS16() {
-        return std::bit_cast<int16_t>(readU16());
-    }
+    int16_t readS16();
 
-    uint32_t readU32() {
-        return swapBO ? __builtin_bswap32(readNum<uint32_t>()) : readNum<uint32_t>();
-    }
+    uint32_t readU32();
 
-    int32_t readS32() {
-        return std::bit_cast<int32_t>(readU32());
-    }
+    int32_t readS32();
 
-    void skip(const size_t off) {
-        if (m_Pos + off > m_Resource.m_Data.size()) throw std::out_of_range("Resource oob skip");
-        m_Pos += off;
-    }
+    void skip(size_t off);
 
-    void rewind(const size_t off) {
-        if (off > m_Pos) throw std::out_of_range("Resource oob rewind");
-        m_Pos -= off;
-    }
+    void rewind(size_t off);
 
-    void seek(const size_t off) {
-        if (off > m_Resource.m_Data.size()) throw std::out_of_range("Resource oob seek");
-        m_Pos = off;
-    }
+    void seek(size_t off);
 
     [[nodiscard]] size_t tell() const {
         return m_Pos;
     }
 
-    std::span<const uint8_t> getSpanAt(uint32_t offset, uint32_t size) {
-        return {m_Resource.m_Data.begin() + offset, size};
-    }
+    std::span<const uint8_t> getSpanAt(uint32_t offset, uint32_t size);
 
     bool swapBO = false;
 private:
     const MemoryResource &m_Resource;
     size_t m_Pos = 0;
+#ifdef COVERAGE_CHECK
+    std::vector<bool> m_Coverage;
+#endif
 };
 
 class OutMemoryStream {
@@ -198,17 +179,18 @@ public:
         return a;
     }
 
-    void writeBuffer(const std::span<const int8_t>& span) {
-        writeBuffer(reinterpret_cast<const std::span<const uint8_t>&>(span));
+    void writeBuffer(const std::span<const int8_t> &span) {
+        writeBuffer(reinterpret_cast<const std::span<const uint8_t> &>(span));
     }
 
-    void writeBuffer(const std::span<const uint8_t>& span) {
+    void writeBuffer(const std::span<const uint8_t> &span) {
         uint32_t replaceCount = std::min(m_Resource.m_Data.size() - m_Pos, span.size());
         if (replaceCount > 0) {
             std::copy(span.begin(), span.begin() + replaceCount, m_Resource.m_Data.begin() + m_Pos);
         }
         if (replaceCount < span.size()) {
-            m_Resource.m_Data.insert(m_Resource.m_Data.begin() + m_Pos + replaceCount, span.begin() + replaceCount, span.end());
+            m_Resource.m_Data.insert(m_Resource.m_Data.begin() + m_Pos + replaceCount, span.begin() + replaceCount,
+                                     span.end());
         }
         m_Pos += span.size();
     }

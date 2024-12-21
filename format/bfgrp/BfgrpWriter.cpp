@@ -63,7 +63,7 @@ uint32_t BfgrpWriter::writeInfo(const BfgrpContext &context) {
         m_Stream.writeU16(0);
         m_Stream.writeS32(0x8 * context.files.size() + 0x4 + i * 0x10);
     }
-    uint32_t nextFileOff = 0x38;
+    uint32_t nextFileOff = 0x18;
     for (auto &file : context.files) {
         m_Stream.writeU32(file.fileIndex);
         m_Stream.writeU16(0x1f00);
@@ -87,7 +87,7 @@ uint32_t BfgrpWriter::writeFile(const BfgrpContext &context) {
     uint32_t start = m_Stream.tell();
     m_Stream.writeU32(0x454c4946);
     uint32_t paddedSizeOff = m_Stream.skip(4);
-    m_Stream.fillToAlign(0x40);
+    m_Stream.fillToAlign(0x20);
     for (auto &file : context.files) {
         m_Stream.writeBuffer(file.file);
         m_Stream.fillToAlign(0x20);

@@ -32,7 +32,7 @@ private:
 
     std::optional<BfsarContext> readInfo(const std::vector<std::string> &stringTable);
 
-    std::optional<BfsarSound> readSoundInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
+    std::optional<BfsarSound> readSoundInfo(const std::vector<std::string> &stringTable);
 
     std::optional<BfsarStreamSound> readStreamSoundInfo();
 
@@ -43,15 +43,15 @@ private:
     BfsarSound3D readSound3DInfo(uint32_t startOff);
 
     BfsarSoundGroup
-    readSoundGroupInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
+    readSoundGroupInfo(const std::vector<std::string> &stringTable);
 
-    BfsarBank readBankInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
+    BfsarBank readBankInfo(const std::vector<std::string> &stringTable);
 
-    BfsarWaveArchive readWaveArchiveInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
+    BfsarWaveArchive readWaveArchiveInfo(const std::vector<std::string> &stringTable);
 
     std::vector<uint32_t> readBankIdTable();
 
-    BfsarGroup readGroupInfo(const std::vector<std::string> &stringTable, const std::vector<BfsarFileInfo> &fileData);
+    BfsarGroup readGroupInfo(const std::vector<std::string> &stringTable);
 
     BfsarPlayer readPlayerInfo(const std::vector<std::string> &stringTable);
 

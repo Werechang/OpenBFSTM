@@ -160,15 +160,15 @@ Starting from 0x18 in the sound info entry, the values to the flags are stored.
 Their offset is defined by the value of the previous flags. If for example 3 previous flags are on,
 the offset is 3 ints (0xc) starting from 0x18.
 
-| Flag Bit (0x14) | Name         | Flag Value (0x18)                                                    |
-|-----------------|--------------|----------------------------------------------------------------------|
-| 0               | String Id    | Index of this entry in the string table                              |
-| 1               | Pan Info     | 0x0000AABB With A defining the curve and B the mode                  |
-| 2               | Player Info  | 0x0000AABB A is actor player id, B is player priority                |
-| 3               | Single Play  | 0xAAAABBBB With B defining the type and A the effective duration     |
-| 8               | Sound3D      | An offset to Sound3D Info, relative to 0x0 in this sound info entry. |
-| 17              | Front Bypass | If front bypass is enabled.                                          |
-| 31              | User Param   | User param, probably used at runtime. Always set but value is 0.     |
+| Flag Bit (0x14) | Name         | Flag Value (0x18)                                                              |
+|-----------------|--------------|--------------------------------------------------------------------------------|
+| 0               | String Id    | Index of this entry in the string table                                        |
+| 1               | Pan Info     | 0x0000AABB With A defining the curve and B the mode                            |
+| 2               | Player Info  | 0x0000AABB A is actor player id (always 0), B is player priority (always 0x40) |
+| 3               | Single Play  | 0xAAAABBBB With B defining the type and A the effective duration               |
+| 8               | Sound3D      | An offset to Sound3D Info, relative to 0x0 in this sound info entry.           |
+| 17              | Front Bypass | If front bypass is enabled.                                                    |
+| 31              | User Param   | User param, probably used at runtime. Always set but value is 0.               |
 
 The rest of the flag bits are unused in this version.
 
@@ -180,24 +180,25 @@ The rest of the flag bits are unused in this version.
 | 0x4    | float | ?     | Unknown, either 0.5, 0.7 or 0.8, doesn't correlate with flags |
 | 0x8    | u8    | ?     | Always 1                                                      |
 | 0x9    | u8    | ?     | Always 0                                                      |
+| 0xa    | u16   | -     | Padding                                                       |
 
 ##### Stream Sound Info (0x2201)
 
-| Offset | Type  | Name                  | Description                                                        |
-|--------|-------|-----------------------|--------------------------------------------------------------------|
-| 0x0    | u16   | valid_tracks          | Bitmask defining valid tracks                                      |
-| 0x2    | u16   | channel_count         |                                                                    |
-| 0x4    | u16   | track_info_table_flag | 0x0101 (always set)                                                |
-| 0x6    | u16   | -                     | padding                                                            |
-| 0x8    | s32   | track_info_table_off  | Relative to 0x0 in this structure if flag is set                   |
-| 0xc    | float | ?                     | Always 1.0f                                                        |
-| 0x10   | u16   | send_value_flag       | 0x220f (always set)                                                |
-| 0x12   | u16   | -                     | padding                                                            |
-| 0x14   | u32   | send_value_offset     | Offset to the send value, relative to 0x0 here                     |
-| 0x18   | u16   | stream_sound_ext_flag | 0x2210 (never set)                                                 |
-| 0x1a   | u16   | -                     | padding                                                            |
-| 0x1c   | s32   | stream_sound_ext_off  | relative to 0x0 here if flag is set                                |
-| 0x20   | u32   | ?                     | Unknown index. It correlates with music not being an ambient sound |
+| Offset | Type  | Name                  | Description                                                                               |
+|--------|-------|-----------------------|-------------------------------------------------------------------------------------------|
+| 0x0    | u16   | valid_tracks          | Bitmask defining valid tracks                                                             |
+| 0x2    | u16   | channel_count         |                                                                                           |
+| 0x4    | u16   | track_info_table_flag | 0x0101 (always set)                                                                       |
+| 0x6    | u16   | -                     | padding                                                                                   |
+| 0x8    | s32   | track_info_table_off  | Relative to 0x0 in this structure if flag is set                                          |
+| 0xc    | float | ?                     | Always 1.0f                                                                               |
+| 0x10   | u16   | send_value_flag       | 0x220f (always set)                                                                       |
+| 0x12   | u16   | -                     | padding                                                                                   |
+| 0x14   | u32   | send_value_offset     | Offset to the send value, relative to 0x0 here                                            |
+| 0x18   | u16   | stream_sound_ext_flag | 0x2210 (never set)                                                                        |
+| 0x1a   | u16   | -                     | padding                                                                                   |
+| 0x1c   | s32   | stream_sound_ext_off  | relative to 0x0 here if flag is set                                                       |
+| 0x20   | u32   | ?                     | Unknown index. It correlates with music not being an ambient sound. Maybe prefetch index? |
 
 **Send Value**
 0xAABBBBCC, usage unknown, always 0x7f
@@ -226,8 +227,6 @@ This is why the number of valid tracks correlates with the channel count.
 
 **Track Info**
 
-FIXME: Size might be incorrect. There is always a 0x28 gap between entry offsets (Maybe because of tci and sv).
-
 | Offset | Type | Name                    | Description                                                                |
 |--------|------|-------------------------|----------------------------------------------------------------------------|
 | 0x0    | u8   | ?                       | Unknown, 0x7f in most cases                                                |
@@ -242,8 +241,8 @@ FIXME: Size might be incorrect. There is always a 0x28 gap between entry offsets
 | 0x10   | s32  | send_value_off          | relative to 0x0, send value is always 0x7f                                 |
 | 0x14   | u8   | ?                       | Always 0x40                                                                |
 | 0x15   | u8   | ?                       | Always 0                                                                   |
-| 0x16   | u8   | ?                       | Always 0                                                                   |
-| 0x17   | u8   | ?                       |                                                                            |
+| 0x16   | u8   | ?                       | Always 0, might be padding                                                 |
+| 0x17   | u8   | ?                       | Always 0, might be padding                                                 |
 
 **Track Channel Info**
 
@@ -327,12 +326,12 @@ The number of entries in the wave archive id table is always 0.
 
 #### Wave Archive Info Entry
 
-| Offset | Type | Name     | Description                 |
-|--------|------|----------|-----------------------------|
-| 0x0    | u32  | file_id  | Entry Id/Index in file info |
-| 0x4    | u32  | file_num |                             |
-| 0x8    | u32  | flags    | 0: string id 1: wave count  |
-| 0xc    | ...  | data     | specified by flags          |
+| Offset | Type | Name      | Description                 |
+|--------|------|-----------|-----------------------------|
+| 0x0    | u32  | file_id   | Entry Id/Index in file info |
+| 0x4    | u32  | file_num? |                             |
+| 0x8    | u32  | flags     | 0: string id 1: wave count  |
+| 0xc    | ...  | data      | specified by flags          |
 
 #### Group Info Entry
 
@@ -342,7 +341,7 @@ Information about the location of a group (bfgrp).
 |--------|------|-----------------|---------------------------------------------|
 | 0x0    | u32  | file_info_entry | Entry Id/Index in file info, -1 if external |
 | 0x4    | u32  | flags           | 0: string id                                |
-| 0xc    | ...  | data            | specified by flags                          |
+| 0x8    | ...  | data            | specified by flags                          |
 
 #### Player Info Entry
 
@@ -362,15 +361,17 @@ Information about the location of a group (bfgrp).
 
 ##### Internal File Info
 
-| Offset | Type | Name               | Description                         |
-|--------|------|--------------------|-------------------------------------|
-| 0x0    | u16  | file_flag          | 0x1f00 if file_offset is set        |
-| 0x2    | u16  | -                  | padding                             |
-| 0x4    | s32  | file_offset        | relative from 0x8 in the file block |
-| 0x8    | u32  | file_size          |                                     |
-| 0xc    | u16  | group_table_flag   | Always 0x0100                       |
-| 0xe    | u16  | -                  | padding                             |
-| 0x10   | s32  | group_table_offset | relative from 0x0                   |
+| Offset | Type | Name               | Description                                        |
+|--------|------|--------------------|----------------------------------------------------|
+| 0x0    | u16  | file_flag          | 0x1f00 if file_offset is set                       |
+| 0x2    | u16  | -                  | padding                                            |
+| 0x4    | s32  | file_offset        | relative from 0x8 in the file block, -1 if not set |
+| 0x8    | u32  | file_size          | -1 if not set                                      |
+| 0xc    | u16  | group_table_flag   | Always 0x0100                                      |
+| 0xe    | u16  | -                  | padding                                            |
+| 0x10   | s32  | group_table_offset | relative from 0x0                                  |
+
+If offset is 0xffffffff, probably means inside a group file
 
 **Group Table**
 
@@ -379,7 +380,6 @@ Information about the location of a group (bfgrp).
 | 0x0    | u32              | entry_num |                   |
 | 0x4    | u32\[entry_num\] | entries   | item id, meaning? |
 
-If offset is 0xffffffff, probably means inside a group file
 
 ##### External File Info
 

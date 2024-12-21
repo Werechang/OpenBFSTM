@@ -14,7 +14,7 @@ public:
 private:
     struct LUTNode {
         LUTNode() = default;
-        explicit LUTNode(std::string name) : name(std::move(name)) {};
+        explicit LUTNode(const std::string& name) : name(name) {};
         uint32_t charIdx = 0;
         uint32_t bitIndex = 0;
         std::string name;
@@ -22,21 +22,29 @@ private:
         std::shared_ptr<LUTNode> right;
     };
 
-    void writeHeader(const BfsarContext& context);
+    struct WriteInfo {
+        std::vector<const std::string*> strTable;
+        // Exactly matches strings in string table
+        std::vector<uint32_t> strIndexedIds;
+    };
 
-    uint32_t writeStrg(const BfsarContext& context);
+    void writeHeader(const BfsarContext& context, const WriteInfo& writeInfo);
 
-    void writeStrTable(const std::vector<std::string>& names);
+    uint32_t writeStrgSec(const WriteInfo &writeInfo);
 
-    void writeLUT(const std::vector<std::string> &names);
+    void writeStrTable(const std::vector<const std::string*> &names);
 
-    static std::optional<std::shared_ptr<LUTNode>> createLUT(const std::vector<std::string>& names);
+    void writeLUT(const WriteInfo& writeInfo);
+
+    static std::optional<std::shared_ptr<LUTNode>> createLUT(std::vector<const std::string*>& names);
 
     void printTree(const std::shared_ptr<BfsarWriter::LUTNode> &node, const std::string &prefix, bool isLeft);
 
-    uint32_t writeInfo(const BfsarContext& context);
+    uint32_t writeInfoSec(const BfsarContext& context, const WriteInfo& writeInfo);
 
-    void writeSoundInfo(const BfsarContext& context);
+    uint32_t writeSoundInfo(const BfsarContext& context, const WriteInfo& writeInfo);
+
+    void writeSound3DInfo(const BfsarSound3D& s3d);
 
     void writeStreamSoundInfo(const BfsarStreamSound& stm);
 
@@ -44,21 +52,21 @@ private:
 
     void writeSequenceSoundInfo(const BfsarSequenceSound& seq);
 
-    void writeSoundGroupInfo(const BfsarContext& context);
+    uint32_t writeSoundGroupInfo(const BfsarContext& context, const WriteInfo& writeInfo);
 
-    void writeBankInfo(const BfsarContext& context);
+    uint32_t writeBankInfo(const BfsarContext& context, const WriteInfo& writeInfo);
 
-    void writeWaveArchiveInfo(const BfsarContext& context);
+    uint32_t writeWaveArchiveInfo(const BfsarContext& context, const WriteInfo& writeInfo);
 
-    void writeGroupInfo(const BfsarContext& context);
+    uint32_t writeGroupInfo(const BfsarContext& context, const WriteInfo& writeInfo);
 
-    void writePlayerInfo(const BfsarContext& context);
+    uint32_t writePlayerInfo(const BfsarContext& context, const WriteInfo& writeInfo);
 
-    void writeFileInfo(const BfsarContext& context);
+    uint32_t writeFileInfo(const BfsarContext &context);
 
     void writeSoundArchivePlayerInfo(const BfsarContext& context);
 
-    uint32_t writeFile(const BfsarContext& context);
+    uint32_t writeFileSec(const BfsarContext &context);
 
     OutMemoryStream m_Stream;
 };
